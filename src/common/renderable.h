@@ -18,6 +18,14 @@ struct renderable {
 	// program shader
 	GLuint sp;
 
+	void create() {
+		glGenVertexArrays(1, &vao);
+	}
+
+	void bind() {
+		glBindVertexArray(vao);
+	}
+
 	template <class T>
 	GLuint add_vertex_attribute(T* values, unsigned int count,
 		unsigned int attribute_index,
@@ -25,6 +33,8 @@ struct renderable {
 		unsigned int TYPE,
 		unsigned int stride = 0,
 		unsigned int offset = 0) {
+
+		glBindVertexArray(vao);
 
 		/* create a buffer for the render data in video RAM */
 		vbos.push_back(0);
@@ -39,7 +49,7 @@ struct renderable {
 		/* specify the data format */
 		glVertexAttribPointer(attribute_index, num_components, TYPE, false, stride,(void*)  (size_t) offset  );
 
-		//glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(NULL);
 		return vbos.back();
 	}
 
@@ -51,9 +61,11 @@ struct renderable {
 							unsigned int offset = 0){ }
 
 	GLuint add_indices(unsigned int * indices, unsigned int count, unsigned int ELEM_TYPE) {
+		glBindVertexArray(vao);
 		glCreateBuffers(1, &ind);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ind);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * count, indices, GL_STATIC_DRAW);
+		glBindVertexArray(NULL);
 		elem_type = ELEM_TYPE;
 		return ind;
 	};

@@ -43,6 +43,8 @@ int main(void)
                             0.0, 0.5  // 4th vertex
     };
     renderable r;
+    r.create();
+
     r.add_vertex_attribute<float>(positions, 8, positionAttribIndex, 2);
 
     GLuint colorAttribIndex = 1;
@@ -57,12 +59,13 @@ int main(void)
     GLuint indices[] = { 0,1,2,0,2,3 };
     r.add_indices(indices, 6, GL_TRIANGLES);
 
-
-
     shader basic_shader;
     basic_shader.create_program("shaders/basic.vert", "shaders/basic.frag");
     validate_shader_program(basic_shader.pr);
 
+    r.bind();
+
+    check_gl_errors(__LINE__, __FILE__);
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
