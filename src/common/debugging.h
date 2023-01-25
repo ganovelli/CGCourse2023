@@ -25,31 +25,31 @@ static bool check_gl_errors(int line, const char* file) {
 	switch (err) {
 		
 	case GL_INVALID_ENUM:
-		std::cout << "GL_INVALID_ENUM\n An unacceptable value is specified for an enumerated argument.The offending command is ignoredand has no other side effect than to set the error flag.\n";
+		std::cout << "GL_INVALID_ENUM\n An unacceptable value is specified for an enumerated argument.The offending command is ignoredand has no other side effect than to set the error flag."<< "Line: "<< line << " File: " << file << "\n";
 		break;
 
 	case GL_INVALID_VALUE:
-		std::cout << "GL_INVALID_VALUE\n A numeric argument is out of range.The offending command is ignoredand has no other side effect than to set the error flag.\n";
+		std::cout << "GL_INVALID_VALUE\n A numeric argument is out of range.The offending command is ignoredand has no other side effect than to set the error flag." << "Line: " << line << " File: " << file << "\n";
 		break;
 
 	case GL_INVALID_OPERATION:
-		std::cout << "GL_INVALID_OPERATION\n The specified operation is not allowed in the current state.The offending command is ignoredand has no other side effect than to set the error flag.\n";
+		std::cout << "GL_INVALID_OPERATION\n The specified operation is not allowed in the current state.The offending command is ignoredand has no other side effect than to set the error flag." << "Line: " << line << " File: " << file << "\n";
 		break;
 
 	case GL_INVALID_FRAMEBUFFER_OPERATION:
-		std::cout << "GL_INVALID_FRAMEBUFFER_OPERATION\n  The framebuffer object is not complete.The offending command is ignoredand has no other side effect than to set the error flag.\n";
+		std::cout << "GL_INVALID_FRAMEBUFFER_OPERATION\n  The framebuffer object is not complete.The offending command is ignoredand has no other side effect than to set the error flag." << "Line: " << line << " File: " << file << "\n";
 		break;
 
 	case GL_OUT_OF_MEMORY:
-		std::cout << "GL_OUT_OF_MEMORY\n There is not enough memory left to execute the command.The state of the GL is undefined, except for the state of the error flags, after this error is recorded.\n";
+		std::cout << "GL_OUT_OF_MEMORY\n There is not enough memory left to execute the command.The state of the GL is undefined, except for the state of the error flags, after this error is recorded." << "Line: " << line << " File: " << file << "\n";
 		break;
 
 	case GL_STACK_UNDERFLOW: 
-		std::cout << "GL_STACK_UNDERFLOW\n An attempt has been made to perform an operation that would cause an internal stack to underflow.\n";
+		std::cout << "GL_STACK_UNDERFLOW\n An attempt has been made to perform an operation that would cause an internal stack to underflow." << "Line: " << line << " File: " << file << "\n";
 		break;
 
 	case GL_STACK_OVERFLOW:
-		std::cout << "GL_STACK_OVERFLOW\n An attempt has been made to perform an operation that would cause an internal stack to overflow.\n";
+		std::cout << "GL_STACK_OVERFLOW\n An attempt has been made to perform an operation that would cause an internal stack to overflow." << "Line: " << line << " File: " << file << "\n";
 		break;
 	}
 	return err == GL_NO_ERROR;

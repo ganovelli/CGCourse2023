@@ -61,6 +61,9 @@ int main(void)
 
     shader basic_shader;
     basic_shader.create_program("shaders/basic.vert", "shaders/basic.frag");
+	check_shader(basic_shader.vs);
+	check_shader(basic_shader.fs);
+
     validate_shader_program(basic_shader.pr);
 
     r.bind();
@@ -72,7 +75,7 @@ int main(void)
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(basic_shader.pr);
+       glUseProgram(basic_shader.pr);
        
         //glDrawArrays(GL_TRIANGLES, 0, 3);
          
