@@ -19,7 +19,7 @@ static void printout_opengl_glsl_info() {
 	std::cout << "GLSL Version         :" << glslVersion << std::endl;
 }
 
-static bool check_gl_errors(int line, const char* file) {
+static bool check_gl_errors(int line, const char* file, bool exit_on_error = true) {
 	int err = glGetError();
 	std::string err_string;
 	switch (err) {
@@ -52,14 +52,17 @@ static bool check_gl_errors(int line, const char* file) {
 		std::cout << "GL_STACK_OVERFLOW\n An attempt has been made to perform an operation that would cause an internal stack to overflow." << "Line: " << line << " File: " << file << "\n";
 		break;
 	}
-	return err == GL_NO_ERROR;
+	bool ok_res = (err == GL_NO_ERROR);
+	if (!ok_res  && exit_on_error)
+		exit(0);
+	return ok_res;
 }
 
-static bool check_gl_errors() {
-		return check_gl_errors(-1, ".");
+static bool check_gl_errors( bool exit_on_error = true) {
+		return check_gl_errors(-1, ".", exit_on_error);
 	}
 
-static bool check_shader(GLuint s) {
+static bool check_shader(GLuint s,  bool exit_on_error = true) {
 	std::vector<GLchar> buf;
 	GLint l;
 	glGetShaderiv(s, GL_INFO_LOG_LENGTH, &l);
@@ -67,6 +70,8 @@ static bool check_shader(GLuint s) {
 		buf.resize(l);
 		glGetShaderInfoLog(s, l, &l, &buf[0]);
 		std::cout << &buf[0] << std::endl;
+		if (exit_on_error)
+			exit(0);
 		return false;
 	}
 	return true;
