@@ -38,7 +38,7 @@ struct renderable {
 
 		/* create a buffer for the render data in video RAM */
 		vbos.push_back(0);
-		glCreateBuffers(1, &vbos.back());
+		glGenBuffers(1, &vbos.back());
 
 		glBindBuffer(GL_ARRAY_BUFFER, vbos.back());
 
@@ -62,7 +62,7 @@ struct renderable {
 
 	GLuint add_indices(unsigned int * indices, unsigned int count, unsigned int ELEM_TYPE) {
 		glBindVertexArray(vao);
-		glCreateBuffers(1, &ind);
+		glGenBuffers(1, &ind);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ind);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * count, indices, GL_STATIC_DRAW);
 		glBindVertexArray(NULL);
