@@ -54,3 +54,12 @@ build/code_0_setup/x64/Debug/code_0_setup.tlog/link.write.1.tlog
 *.tlog
 *.log
 *.tlog
+build/code_1_my_first_triangle/code_1_my_first_triangle.vcxproj.filters
+build/code_2_wrapping/code_2_wrapping.vcxproj.filters
+build/code_3_box2d/code_3_box2d.vcxproj.filters
+build/code_2_wrapping/code_2_wrapping.vcxproj.filters
+build/.vs/build/v14/.suo
+build/code_2_wrapping/code_2_wrapping.vcxproj.filters
+build/code_2_wrapping/code_2_wrapping.vcxproj.filters
+*.filters
+*.filters
