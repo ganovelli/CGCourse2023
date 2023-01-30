@@ -6,8 +6,6 @@
 #include "..\common\renderable.h"
 #include "..\common\shaders.h"
 
-
-
 int main(void)
 {
     GLFWwindow* window;
@@ -23,7 +21,6 @@ int main(void)
         glfwTerminate();
         return -1;
     }
-
     
     /* Make the window's context current */
     glfwMakeContextCurrent(window);

@@ -37,7 +37,7 @@ int main(void)
 	};
 	/* create a buffer for the render data in video RAM */
 	GLuint positionsBuffer;
-	glCreateBuffers(1, &positionsBuffer);
+	glGenBuffers(1, &positionsBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, positionsBuffer);
 
 	/* declare what data in RAM are filling the bufferin video RAM */
@@ -54,7 +54,7 @@ int main(void)
 	};
 	/* create a buffer for the render data in video RAM */
 	GLuint colorsBuffer;
-	glCreateBuffers(1, &colorsBuffer);
+	glGenBuffers(1, &colorsBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, colorsBuffer);
 
 	/* declare what data in RAM are filling the bufferin video RAM */
