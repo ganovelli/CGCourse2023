@@ -19,47 +19,50 @@ static void printout_opengl_glsl_info() {
 	std::cout << "GLSL Version         :" << glslVersion << std::endl;
 }
 
-static bool check_gl_errors(int line, const char* file) {
+static bool check_gl_errors(int line, const char* file, bool exit_on_error = true) {
 	int err = glGetError();
 	std::string err_string;
 	switch (err) {
 		
 	case GL_INVALID_ENUM:
-		std::cout << "GL_INVALID_ENUM\n An unacceptable value is specified for an enumerated argument.The offending command is ignoredand has no other side effect than to set the error flag.\n";
+		std::cout << "GL_INVALID_ENUM\n An unacceptable value is specified for an enumerated argument.The offending command is ignoredand has no other side effect than to set the error flag."<< "Line: "<< line << " File: " << file << "\n";
 		break;
 
 	case GL_INVALID_VALUE:
-		std::cout << "GL_INVALID_VALUE\n A numeric argument is out of range.The offending command is ignoredand has no other side effect than to set the error flag.\n";
+		std::cout << "GL_INVALID_VALUE\n A numeric argument is out of range.The offending command is ignoredand has no other side effect than to set the error flag." << "Line: " << line << " File: " << file << "\n";
 		break;
 
 	case GL_INVALID_OPERATION:
-		std::cout << "GL_INVALID_OPERATION\n The specified operation is not allowed in the current state.The offending command is ignoredand has no other side effect than to set the error flag.\n";
+		std::cout << "GL_INVALID_OPERATION\n The specified operation is not allowed in the current state.The offending command is ignoredand has no other side effect than to set the error flag." << "Line: " << line << " File: " << file << "\n";
 		break;
 
 	case GL_INVALID_FRAMEBUFFER_OPERATION:
-		std::cout << "GL_INVALID_FRAMEBUFFER_OPERATION\n  The framebuffer object is not complete.The offending command is ignoredand has no other side effect than to set the error flag.\n";
+		std::cout << "GL_INVALID_FRAMEBUFFER_OPERATION\n  The framebuffer object is not complete.The offending command is ignoredand has no other side effect than to set the error flag." << "Line: " << line << " File: " << file << "\n";
 		break;
 
 	case GL_OUT_OF_MEMORY:
-		std::cout << "GL_OUT_OF_MEMORY\n There is not enough memory left to execute the command.The state of the GL is undefined, except for the state of the error flags, after this error is recorded.\n";
+		std::cout << "GL_OUT_OF_MEMORY\n There is not enough memory left to execute the command.The state of the GL is undefined, except for the state of the error flags, after this error is recorded." << "Line: " << line << " File: " << file << "\n";
 		break;
 
 	case GL_STACK_UNDERFLOW: 
-		std::cout << "GL_STACK_UNDERFLOW\n An attempt has been made to perform an operation that would cause an internal stack to underflow.\n";
+		std::cout << "GL_STACK_UNDERFLOW\n An attempt has been made to perform an operation that would cause an internal stack to underflow." << "Line: " << line << " File: " << file << "\n";
 		break;
 
 	case GL_STACK_OVERFLOW:
-		std::cout << "GL_STACK_OVERFLOW\n An attempt has been made to perform an operation that would cause an internal stack to overflow.\n";
+		std::cout << "GL_STACK_OVERFLOW\n An attempt has been made to perform an operation that would cause an internal stack to overflow." << "Line: " << line << " File: " << file << "\n";
 		break;
 	}
-	return err == GL_NO_ERROR;
+	bool ok_res = (err == GL_NO_ERROR);
+	if (!ok_res  && exit_on_error)
+		exit(0);
+	return ok_res;
 }
 
-static bool check_gl_errors() {
-		return check_gl_errors(-1, ".");
+static bool check_gl_errors( bool exit_on_error = true) {
+		return check_gl_errors(-1, ".", exit_on_error);
 	}
 
-static bool check_shader(GLuint s) {
+static bool check_shader(GLuint s,  bool exit_on_error = true) {
 	std::vector<GLchar> buf;
 	GLint l;
 	glGetShaderiv(s, GL_INFO_LOG_LENGTH, &l);
@@ -67,6 +70,8 @@ static bool check_shader(GLuint s) {
 		buf.resize(l);
 		glGetShaderInfoLog(s, l, &l, &buf[0]);
 		std::cout << &buf[0] << std::endl;
+		if (exit_on_error)
+			exit(0);
 		return false;
 	}
 	return true;
