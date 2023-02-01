@@ -1,6 +1,7 @@
 #pragma once
 #include <GL/glew.h>
 #include <vector>
+ 
 
 struct renderable {
 	// vertex array object
@@ -77,5 +78,5 @@ GLuint renderable::add_vertex_attribute(float * values, unsigned int count,
 	unsigned int num_components,
 	unsigned int stride,
 	unsigned int offset) { 
-	return this->add_vertex_attribute(values, count, attribute_index, num_components, (unsigned int) GL_FLOAT, stride, offset);
+ 	return this->add_vertex_attribute(values, count, attribute_index, num_components, (unsigned int) GL_FLOAT, stride, offset);
 }

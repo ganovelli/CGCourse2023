@@ -18,8 +18,5 @@
     <ClCompile Include="..\..\src\code_3_box2d\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="test.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
 </Project>
