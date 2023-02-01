@@ -1,6 +1,7 @@
 #pragma once
 #include <GL/glew.h>
 #include <vector>
+ 
 
 struct renderable {
 	// vertex array object
@@ -15,8 +16,11 @@ struct renderable {
 	// primitive type
 	unsigned int elem_type;
 	
-	// program shader
-	GLuint sp;
+	// number of vertices
+	unsigned int vn;
+
+	// number of indices
+	unsigned int in;
 
 	void create() {
 		glGenVertexArrays(1, &vao);
@@ -33,6 +37,8 @@ struct renderable {
 		unsigned int TYPE,
 		unsigned int stride = 0,
 		unsigned int offset = 0) {
+
+		vn = count;
 
 		glBindVertexArray(vao);
 
@@ -61,6 +67,7 @@ struct renderable {
 							unsigned int offset = 0){ }
 
 	GLuint add_indices(unsigned int * indices, unsigned int count, unsigned int ELEM_TYPE) {
+		in = count;
 		glBindVertexArray(vao);
 		glGenBuffers(1, &ind);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ind);
@@ -77,5 +84,5 @@ GLuint renderable::add_vertex_attribute(float * values, unsigned int count,
 	unsigned int num_components,
 	unsigned int stride,
 	unsigned int offset) { 
-	return this->add_vertex_attribute(values, count, attribute_index, num_components, (unsigned int) GL_FLOAT, stride, offset);
+ 	return this->add_vertex_attribute(values, count, attribute_index, num_components, (unsigned int) GL_FLOAT, stride, offset);
 }
