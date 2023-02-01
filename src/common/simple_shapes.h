@@ -21,7 +21,7 @@ struct shape {
 
 struct shape_maker {
 	 
-	 static renderable cube() {
+	 static renderable cube(float r = 0.5, float g = 0.5, float b = 0.5) {
 		shape  s;
 		// vertices definition
 		////////////////////////////////////////////////////////////
@@ -35,6 +35,15 @@ struct shape_maker {
 					   -1.0, 1.0, -1.0,
 					   1.0, 1.0, -1.0
 		};
+		s.colors = {
+			r,g,b,
+			r,g,b,
+			r,g,b,
+			r,g,b,
+			r,g,b,
+			r,g,b,
+			r,g,b,
+			r,g,b		};
 		// triangles definition
 		////////////////////////////////////////////////////////////
 
@@ -86,7 +95,7 @@ struct shape_maker {
 		 return res;
 	 }
 
-	 static renderable cylinder(int resolution){
+	 static renderable cylinder(int resolution, float r = 0.5, float g = 0.5, float b = 0.5){
 		 // vertices definition
 		 ////////////////////////////////////////////////////////////
 		 shape s;
@@ -128,6 +137,11 @@ struct shape_maker {
 		 s.positions[vertexoffset + 1] = 2.0;
 		 s.positions[vertexoffset + 2] = 0.0;
 
+		 for (int i = 0; i < s.positions.size(); i += 3) {
+			 s.colors.push_back(r);
+			 s.colors.push_back(g);
+			 s.colors.push_back(b);
+		 }
 
 		 // triangles definition
 		 ////////////////////////////////////////////////////////////

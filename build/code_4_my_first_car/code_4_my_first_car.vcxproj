@@ -148,6 +148,9 @@
     <ClCompile Include="..\..\src\code_4_my_first_car\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\common\debugging.h" />
+    <ClInclude Include="..\..\src\common\renderable.h" />
+    <ClInclude Include="..\..\src\common\shaders.h" />
     <ClInclude Include="..\..\src\common\simple_shapes.h" />
   </ItemGroup>
   <ItemGroup>
