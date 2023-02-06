@@ -65,3 +65,7 @@ build/code_2_wrapping/code_2_wrapping.vcxproj.filters
 *.filters
 *.filters
 *.filters
+*.ipdb
+*.user
+*.user
+*.iobj

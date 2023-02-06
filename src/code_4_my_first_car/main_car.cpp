@@ -15,6 +15,16 @@ and set the path properly.
 #include <glm/glm.hpp>  
 #include <glm/ext.hpp>  
 
+void out_mat(glm::mat4 m) {
+	std::cout << std::endl;
+	for (int i=0; i < 4; ++i) {
+		for (int j=0; j < 4; ++j)
+			std::cout << m[i][j] << " ";
+		std::cout << std::endl;
+	}
+
+}
+
 int main(void)
 {
     GLFWwindow* window;
@@ -43,6 +53,7 @@ int main(void)
 	basic_shader.bind("uP");
 	basic_shader.bind("uV");
 	basic_shader.bind("uT");
+	basic_shader.bind("uColor");
 	check_shader(basic_shader.vs);
 	check_shader(basic_shader.fs);
     validate_shader_program(basic_shader.pr);
@@ -55,7 +66,7 @@ int main(void)
 	check_gl_errors(__LINE__, __FILE__);
 
 	/* create a  cube   centered at the origin with side 2*/
-	renderable r_cube	= shape_maker::cube(0.5,0.6,0.0);
+	renderable r_cube	= shape_maker::cube(0.5,0.3,0.0);
 
 	/* create a  cylinder with base on the XZ plane, and height=2*/
 	renderable r_cyl	= shape_maker::cylinder(30,0.2,0.1,0.5);
@@ -73,13 +84,49 @@ int main(void)
 	/*Initialize the matrix to implement the continuos rotation aroun the y axis*/
 	glm::mat4 R = glm::mat4(1.f);
 
+	/* define a transformation that will be applyed the the body of the car */
+	glm::mat4 rotcar = glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.0, -2.0));
+	rotcar = glm::rotate(rotcar, 0.1f, glm::vec3(-1.0, 0.0, 0.0));
+	rotcar = glm::translate(rotcar, glm::vec3(0.0, 0.0, 2.0));
+	
+
+	glm::mat4 cube_to_car_body			= glm::scale(rotcar, glm::vec3(1.0, 0.5, 2.0));
+	cube_to_car_body = glm::translate(cube_to_car_body, glm::vec3(0.0, 1.0, 0.0));
+
+	glm::mat4 cube_to_spoiler;
+	glm::mat4 a1 = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 1.0, 0.0));
+	glm::mat4 a2 = glm::shear(glm::mat4(1.0), glm::vec3(0.f), glm::vec2(0.f), glm::vec2(0.f), glm::vec2(0.f, 1.0));
+	glm::mat4 a3 = glm::scale(glm::mat4(1.0), glm::vec3(1.0, 0.1, 2.0));
+	glm::mat4 a4 = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 1.0, 0.0));
+	cube_to_spoiler = rotcar*a1*a2*a3*a4;
+
+	glm::mat4 cyl_to_wheel;
+	glm::mat4 w1 = glm::translate(glm::mat4(1.0), glm::vec3(0.0, -1.0, 0.0));
+ 	glm::mat4 w2 = glm::scale(glm::mat4(1.0), glm::vec3(0.5, 0.1, 0.5));
+	glm::mat4 w3 = glm::rotate(glm::mat4(1.0), glm::radians(90.f),glm::vec3(0.0, 0.0, 1.0));
+	cyl_to_wheel = w3*w2*w1;
+	
+	std::vector<glm::mat4> wheels;
+	wheels.resize(4);
+	wheels[0]= glm::translate(glm::mat4(1.0), glm::vec3(-1.15, 0.0, -1.0));;
+	wheels[0] = wheels[0] *cyl_to_wheel;
+	 
+	wheels[1] = glm::translate(glm::mat4(1.0), glm::vec3( 1.15, 0.0, -1.0));;
+	wheels[1] = wheels[1] * cyl_to_wheel;
+
+	wheels[2] = glm::translate(glm::mat4(1.0), glm::vec3(-1.15, 0.0,  1.0));;
+	wheels[2] = wheels[2] * cyl_to_wheel;
+
+	wheels[3] = glm::translate(glm::mat4(1.0), glm::vec3( 1.15, 0.0, 1.0));;
+	wheels[3] = wheels[3] * cyl_to_wheel;
+
 	int it = 0;
 	/* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
 		it++;
 		/*incremente the rotation by 0.01 radians*/
-		R = glm::rotate(R, 0.5f, glm::vec3(0.f, 1.f, 0.f));
+		R = glm::rotate(R, 0.01f, glm::vec3(0.f, 1.f, 0.f));
 
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
@@ -92,21 +139,30 @@ int main(void)
 		
 
 		/* render box and cylinders so that the look like a car */
-		/* instructions: you need to set up the matrix to set as the uniform variable
-		uT in the vertex shader (file basic.vert):
-		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, YOUR_MATRIX_GOES_HERE);
-		before rendering every shape so that the shape is transformed as needed.
-		You will have to render at least once the cube and four times the cylinder.
-		Then again, you can free you immagination and make a more inventive drawing.
-		*/
-	 	r_cyl.bind();
-	 	glDrawElements(GL_TRIANGLES,r_cyl.in, GL_UNSIGNED_INT, 0);
-
 		r_cube.bind();
+
+		/*draw the cube tranformed into the car's body*/
+		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &cube_to_car_body[0][0]);
+		glUniform3f(basic_shader["uColor"], 1.0,0.0,0.0);
 		glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+
+		/*draw the cube tranformed into the car's roof/spoiler */
+		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &cube_to_spoiler[0][0]);
+		glUniform3f(basic_shader["uColor"], 1.0, 1.0, 0.0);
+		glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+
+		/*draw the wheels */
+		r_cyl.bind();
+		glUniform3f(basic_shader["uColor"], 0.0, 0.0, 1.0);
+		for (int iw = 0; iw < 4; ++iw) {
+			glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &wheels[iw][0][0]);
+			glDrawElements(GL_TRIANGLES, r_cyl.in, GL_UNSIGNED_INT, 0);
+		}
+
+		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &glm::mat4(1.f)[0][0]);
+
 		/* ******************************************************/
-
-
+		glUniform3f(basic_shader["uColor"], -1.0, 0.0, 1.0);
 		r_frame.bind();
 		glDrawArrays(GL_LINES, 0, 6);
 
