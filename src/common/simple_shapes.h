@@ -189,5 +189,33 @@ struct shape_maker {
 		 return res;
 	 }
 
+	 static renderable rectangle(int nX, int nY) {
+		 shape s;
+		 s.positions.resize(3*(nX + 1)*(nY + 1));
+		 for (unsigned int i = 0; i < nX + 1; ++i)
+			 for (unsigned int j = 0; j < nY + 1; ++j){
+				 s.positions[3 * (j*(nX + 1) + i) + 0] = -1.0 + 2 * i / float(nX);
+				 s.positions[3 * (j*(nX + 1) + i) + 1] = 0.f;
+				 s.positions[3 * (j*(nX + 1) + i) + 2] = -1.0 + 2 * j / float(nY);
+			 }
 
+
+		 for (unsigned int i = 0; i < nX ; ++i)
+			 for (unsigned int j = 0; j < nY  ; ++j) {
+					s.indices.push_back(j    *(nX + 1) + i    );
+					s.indices.push_back(j    *(nX + 1) + i + 1);
+					s.indices.push_back((j+1)*(nX + 1) + i + 1 );
+
+					s.indices.push_back(j      *(nX + 1) + i);
+					s.indices.push_back((j + 1)*(nX + 1) + i + 1);
+					s.indices.push_back((j + 1)*(nX + 1) + i);
+			 }
+
+		 s.vn = s.positions.size() / 3;
+		 s.fn = s.indices.size() / 3;
+
+		 renderable res;
+		 s.to_renderable(res);
+		 return res;
+	 }
 	};

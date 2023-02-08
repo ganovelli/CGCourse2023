@@ -148,7 +148,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\code_5_trackball\main.cpp" />
+    <ClInclude Include="..\..\src\common\debugging.h" />
+    <ClInclude Include="..\..\src\common\matrix_stack.h" />
+    <ClInclude Include="..\..\src\common\renderable.h" />
+    <ClInclude Include="..\..\src\common\shaders.h" />
+    <ClInclude Include="..\..\src\common\simple_shapes.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\code_6_trackball\main.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="..\..\src\code_6_trackball\main_stack.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+    </ClCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
