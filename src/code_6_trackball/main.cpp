@@ -16,33 +16,52 @@ and set the path properly.
 #include <glm/glm.hpp>  
 #include <glm/ext.hpp>  
 
-void out_mat(glm::mat4 m) {
-	std::cout << std::endl;
-	for (int i=0; i < 4; ++i) {
-		for (int j=0; j < 4; ++j)
-			std::cout << m[i][j] << " ";
-		std::cout << std::endl;
-	}
 
-}
+/* projection matrix*/
+glm::mat4 proj;
 
+/* view matrix*/
+glm::mat4 view;
+
+/* a bool variable that indicates if we are currently rotating the trackball*/
+bool is_trackball_dragged;
+
+/* callbakc function called when the mouse is moving */
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
-	std::cout << xpos << " " << ypos << " ";
-	if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE)
-	{
-		std::cout << std::endl;
+	std::cout << xpos << " " << ypos << " " << std::endl;
+	if (!is_trackball_dragged)
 		return;
-	}
-	std::cout <<"drag "<< std::endl;
 
+	std::cout <<"drag "<< std::endl;
+	/* here the code to create the rotation to apply before rendering the scene.
+	1. build the ray from (0,0,0) in view space going through the window into the scene
+	2. check if the ray intersect the sphere centered in (0,0,0), in world space. 
+	   Try different values for the sphere radius. radius = 2 will be fine.
+	   You also need to store the previous intersection (found in the previous invocation of
+	   this function) in order to have p0 and p1
+	3. with p0 and p1 compute the rotation vector and angle as seen in the slides
+	4. with glm::rotate create the rotation matrix
+	
+	*BE CAREFUL at point 2*: the ray and sphere must be in the same  frame when computing
+	the intersection. 
+
+	*/
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
-		std::cout << " GLFW_MOUSE_BUTTON_LEFT" << std::endl;
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+		/* here the button is pressed  and hence the dragging of the trackball can start*/
+		std::cout << " GLFW_MOUSE_BUTTON_LEFT PRESSED" << std::endl;
+	}
+	else 
+		if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+			/* here the button is pressed  and hence the dragging of the trackball ends*/
+			std::cout << " GLFW_MOUSE_BUTTON_LEFT RELEASED" << std::endl;
+	}
 }
+
 
 int main(void)
 {
@@ -53,19 +72,18 @@ int main(void)
 		return -1;
 
 	/* Create a windowed mode window and its OpenGL context */
-	window = glfwCreateWindow(1000, 800, "code_4_my_first_car", NULL, NULL);
+	window = glfwCreateWindow(1000, 800, "code_6_trackball", NULL, NULL);
 	if (!window)
 	{
 		glfwTerminate();
 		return -1;
 	}
-
+	/* declare the callback functions on mouse events */
 	if (glfwRawMouseMotionSupported())
 		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 
 	glfwSetCursorPosCallback(window, cursor_position_callback);
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
-
 
 	/* Make the window's context current */
 	glfwMakeContextCurrent(window);
@@ -74,6 +92,7 @@ int main(void)
 
 	printout_opengl_glsl_info();
 
+	/* load the shaders */
 	shader basic_shader;
 	basic_shader.create_program("shaders/basic.vert", "shaders/basic.frag");
 	basic_shader.bind("uP");
@@ -94,139 +113,60 @@ int main(void)
 	/* create a  cube   centered at the origin with side 2*/
 	renderable r_cube = shape_maker::cube(0.5, 0.3, 0.0);
 
-	/* create a  cylinder with base on the XZ plane, and height=2*/
-	renderable r_cyl = shape_maker::cylinder(30, 0.2, 0.1, 0.5);
-
-	/* create 3 lines showing the reference frame*/
-	renderable r_plane = shape_maker::rectangle(1, 1);
-
 	/* create 3 lines showing the reference frame*/
 	renderable r_frame = shape_maker::frame(4.0);
 
 	check_gl_errors(__LINE__, __FILE__);
 
 	/* Transformation to setup the point of view on the scene */
-	glm::mat4 proj = glm::perspective(glm::radians(45.f), 1.33f, 0.1f, 100.f);
-	glm::mat4 view = glm::lookAt(glm::vec3(0, 5, 10.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+	proj = glm::frustum(-1.f, 1.f, -0.8f, 0.8f, 2.f, 100.f);
+	view = glm::lookAt(glm::vec3(0, 6, 8.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	glEnable(GL_DEPTH_TEST);
-
-	/*Initialize the matrix to implement the continuos rotation aroun the y axis*/
-	glm::mat4 R = glm::mat4(1.f);
-
-	/* define a translation that will raise the car above to touch the ground */
-	glm::mat4 raise_up = glm::translate(glm::mat4(1.f), glm::vec3(0.0, 1.2, 0.0));
-
-	/* define a transformation that will be applyed the the body of the car */
-	glm::mat4 rotcar = glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.0, -2.0));
-	rotcar = glm::rotate(rotcar, 0.1f, glm::vec3(-1.0, 0.0, 0.0));
-	rotcar = glm::translate(rotcar, glm::vec3(0.0, 0.0, 2.0));
-
-
-	glm::mat4 cube_to_car_body = glm::scale(rotcar, glm::vec3(1.0, 0.5, 2.0));
-	cube_to_car_body = glm::translate(cube_to_car_body, glm::vec3(0.0, 1.0, 0.0));
-
-	glm::mat4 cube_to_spoiler;
-	glm::mat4 a1 = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 1.0, 0.0));
-	glm::mat4 a2 = glm::shear(glm::mat4(1.0), glm::vec3(0.f), glm::vec2(0.f), glm::vec2(0.f), glm::vec2(0.f, 1.0));
-	glm::mat4 a3 = glm::scale(glm::mat4(1.0), glm::vec3(1.0, 0.1, 2.0));
-	glm::mat4 a4 = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 1.0, 0.0));
-	cube_to_spoiler = rotcar*a1*a2*a3*a4;
-
-	glm::mat4 cyl_to_wheel;
-	glm::mat4 w1 = glm::translate(glm::mat4(1.0), glm::vec3(0.0, -1.0, 0.0));
-	glm::mat4 w2 = glm::scale(glm::mat4(1.0), glm::vec3(0.5, 0.1, 0.5));
-	glm::mat4 w3 = glm::rotate(glm::mat4(1.0), glm::radians(90.f), glm::vec3(0.0, 0.0, 1.0));
-	cyl_to_wheel = w3*w2*w1;
-
-	std::vector<glm::mat4> wheels;
-	wheels.resize(4);
-	wheels[0] = glm::translate(glm::mat4(1.0), glm::vec3(-1.15, 0.0, -1.0));;
-	wheels[0] = wheels[0] * cyl_to_wheel;
-
-	wheels[1] = glm::translate(glm::mat4(1.0), glm::vec3(1.15, 0.0, -1.0));;
-	wheels[1] = wheels[1] * cyl_to_wheel;
-
-	wheels[2] = glm::translate(glm::mat4(1.0), glm::vec3(-1.15, 0.0, 1.0));;
-	wheels[2] = wheels[2] * cyl_to_wheel;
-
-	wheels[3] = glm::translate(glm::mat4(1.0), glm::vec3(1.15, 0.0, 1.0));
-	wheels[3] = wheels[3] * cyl_to_wheel;
-
-	glm::mat4 s_plane(1.0);
-	s_plane[0][0] = s_plane[2][2] = 4.0;
-
-	int it = 0;
 
 	matrix_stack stack;
 
+	/* define the viewport  */
+	glViewport(0, 0, 1000, 800);
 
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
-		it++;
-		/*incremente the rotation by 0.01 radians*/
-		R = glm::rotate(R, 0.01f, glm::vec3(0.f, 1.f, 0.f));
+	
 
 		/* Render here */
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glm::mat4 M = view;
-		glUseProgram(basic_shader.pr);
-		glUniformMatrix4fv(basic_shader["uP"], 1, GL_FALSE, &proj[0][0]);
-		glUniformMatrix4fv(basic_shader["uV"], 1, GL_FALSE, &M[0][0]);
-		check_gl_errors(__LINE__, __FILE__);
+	
+			glUseProgram(basic_shader.pr);
+			glUniformMatrix4fv(basic_shader["uP"], 1, GL_FALSE, &proj[0][0]);
+			glUniformMatrix4fv(basic_shader["uV"], 1, GL_FALSE, &view[0][0]);
+			check_gl_errors(__LINE__, __FILE__);
 
 
-		/* render box and cylinders so that the look like a car */
-		r_cube.bind();
-
-		stack.load_identity();
-		stack.push();
-
-		stack.mult(R);
-		stack.push();
-
-		stack.mult(raise_up);
-
-		stack.push();
-		stack.mult(cube_to_car_body);
-		/*draw the cube tranformed into the car's body*/
-		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		glUniform3f(basic_shader["uColor"], 1.0, 0.0, 0.0);
-		glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
-		stack.pop();
-
-		stack.push();
-		stack.mult(cube_to_spoiler);
-		/*draw the cube tranformed into the car's roof/spoiler */
-		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		glUniform3f(basic_shader["uColor"], 1.0, 1.0, 0.0);
-		glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
-		stack.pop();
-
-		/*draw the wheels */
-		r_cyl.bind();
-		glUniform3f(basic_shader["uColor"], 0.0, 0.0, 1.0);
-		for (int iw = 0; iw < 4; ++iw) {
+			r_cube.bind();
 			stack.push();
-			stack.mult(wheels[iw]);
+			stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 1.0, 0.2)));
 			glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-			glDrawElements(GL_TRIANGLES, r_cyl.in, GL_UNSIGNED_INT, 0);
+			glUniform3f(basic_shader["uColor"], 0.0, 1.0, 0.0);
+			glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
 			stack.pop();
-		}
 
-		stack.pop();
+			stack.push();
+			stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(1, 0.2, 0.2)));
+			glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+			glUniform3f(basic_shader["uColor"], 1.0, 0.0, 0.0);
+			glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+			stack.pop();
+
+			stack.push();
+			stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2f, 0.2f, 1.f)));
+			glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+			glUniform3f(basic_shader["uColor"], 0.0, 0.0, 1.0);
+			glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+			stack.pop();
+			/* ******************************************************/
+
 		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-
-		r_plane.bind();
-		glUniform3f(basic_shader["uColor"], 0.2, 0.5, 0.2);
-		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &s_plane[0][0]);
-		glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
-
-		/* ******************************************************/
-
-		stack.pop();
-
 		glUniform3f(basic_shader["uColor"], -1.0, 0.0, 1.0);
 		r_frame.bind();
 		glDrawArrays(GL_LINES, 0, 6);
