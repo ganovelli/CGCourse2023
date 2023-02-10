@@ -34,7 +34,7 @@ int main(void)
 		return -1;
 
 	/* Create a windowed mode window and its OpenGL context */
-	window = glfwCreateWindow(1000, 800, "code_4_my_first_car", NULL, NULL);
+	window = glfwCreateWindow(1000, 800, "code_5_matrix_stack", NULL, NULL);
 	if (!window)
 	{
 		glfwTerminate();
@@ -143,7 +143,7 @@ int main(void)
 		/* Render here */
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glm::mat4 M = view*R;
+		glm::mat4 M = view;
 		glUseProgram(basic_shader.pr);
 		glUniformMatrix4fv(basic_shader["uP"], 1, GL_FALSE, &proj[0][0]);
 		glUniformMatrix4fv(basic_shader["uV"], 1, GL_FALSE, &M[0][0]);

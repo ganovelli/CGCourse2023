@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #include <string>
 #include <iostream>
+#include <algorithm>
 #include "..\common\debugging.h"
 #include "..\common\renderable.h"
 #include "..\common\shaders.h"
@@ -26,17 +27,51 @@ glm::mat4 view;
 /* a bool variable that indicates if we are currently rotating the trackball*/
 bool is_trackball_dragged;
 
+glm::vec2 viewport_to_view(float pX, float pY) {
+	glm::vec2 res;
+	res.x = -1 + (pX / 1000)*(1.f - (-1.f));
+	res.y = -0.8 + ((800 - pY) / 800)*(0.8f - (-0.8f));
+	return res;
+}
+
+bool ray_sphere_intersection (glm::vec3 &int_point,glm::vec3 r, float radius, float dz) {
+	float a = r[0] * r[0] + r[1] * r[1] + r[2] * r[2];
+	float b = -2 * dz * r[2];
+	float c = dz * dz - radius * radius;
+
+	float dis = b * b - 4 * a * c;
+
+	if (dis > 0) {
+		float t0 = (-b - sqrt(dis)) / (2 * a);
+		float t1 = (-b + sqrt(dis)) / (2 * a);
+		float t = std::min<float>(t0, t1);
+		int_point = glm::vec3(t*r[0],t*r[1],t*r[2]);
+		return true;
+	}
+	return false;
+}
+
+bool test_intersection_sphere(glm::vec3 &int_point, double xpos, double ypos) {
+	glm::vec3 r = glm::vec3(viewport_to_view(xpos, ypos), 2.f);
+
+	glm::vec3 int_point;
+	return ray_sphere_intersection(int_point, r, 2.f, 10.0);
+
+}
+
 /* callbakc function called when the mouse is moving */
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
 	std::cout << xpos << " " << ypos << " " << std::endl;
-	if (!is_trackball_dragged)
-		return;
 
 	std::cout <<"drag "<< std::endl;
 	/* here the code to create the rotation to apply before rendering the scene.
-	1. build the ray from (0,0,0) in view space going through the window into the scene
-	2. check if the ray intersect the sphere centered in (0,0,0), in world space. 
+	1. build the ray from (0,0,0) in view space going through the window into the scene */
+	glm::vec3 int_point;
+	bool intersected = test_intersection_sphere(int_point, xpos, ypos);
+
+
+	/* 2. check if the ray intersect the sphere centered in (0,0,0), in world space. 
 	   Try different values for the sphere radius. radius = 2 will be fine.
 	   You also need to store the previous intersection (found in the previous invocation of
 	   this function) in order to have p0 and p1
