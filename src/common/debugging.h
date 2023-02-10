@@ -65,8 +65,10 @@ static bool check_gl_errors( bool exit_on_error = true) {
 static bool check_shader(GLuint s,  bool exit_on_error = true) {
 	std::vector<GLchar> buf;
 	GLint l;
-	glGetShaderiv(s, GL_INFO_LOG_LENGTH, &l);
-	if (l > 0) {
+	glGetShaderiv(s, GL_COMPILE_STATUS, &l);
+	
+	if (l == GL_FALSE) {
+		glGetShaderiv(s, GL_INFO_LOG_LENGTH, &l);
 		buf.resize(l);
 		glGetShaderInfoLog(s, l, &l, &buf[0]);
 		std::cout << &buf[0] << std::endl;

@@ -54,8 +54,6 @@ int main(void)
 	basic_shader.bind("uV");
 	basic_shader.bind("uT");
 	basic_shader.bind("uColor");
-	check_shader(basic_shader.vs);
-	check_shader(basic_shader.fs);
 	validate_shader_program(basic_shader.pr);
 
 	/* Set the uT matrix to Identity */
