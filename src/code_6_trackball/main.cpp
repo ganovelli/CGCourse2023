@@ -2,64 +2,124 @@
 #include <GLFW/glfw3.h>
 #include <string>
 #include <iostream>
+#include <algorithm>
 #include "..\common\debugging.h"
 #include "..\common\renderable.h"
 #include "..\common\shaders.h"
 #include "..\common\simple_shapes.h"
 #include "..\common\matrix_stack.h"
 
-/* 
-GLM library for math  https://github.com/g-truc/glm 
+/*
+GLM library for math  https://github.com/g-truc/glm
 it's a header-only library. You can just copy the folder glm into 3dparty
-and set the path properly. 
+and set the path properly.
 */
 #include <glm/glm.hpp>  
 #include <glm/ext.hpp>  
+#include <glm/gtx/string_cast.hpp>
 
 
 /* projection matrix*/
 glm::mat4 proj;
 
-/* view matrix*/
-glm::mat4 view;
+/* view matrix and view_frame*/
+glm::mat4 view, view_frame;
 
 /* a bool variable that indicates if we are currently rotating the trackball*/
 bool is_trackball_dragged;
 
-/* callbakc function called when the mouse is moving */
+/* p0 and p1 points on the sphere */
+glm::vec3 p0, p1;
+
+/* matrix to transform the scene according to the trackball */
+glm::mat4 trackball_matrix;
+
+
+glm::vec2 viewport_to_view(float pX, float pY) {
+	glm::vec2 res;
+	res.x = -1 + (pX / 1000) * (1.f - (-1.f));
+	res.y = -0.8 + ((800 - pY) / 800) * (0.8f - (-0.8f));
+	return res;
+}
+
+/*
+o: origin of the ray
+d: direction of the ray
+c: center of the sphere
+radius: radius of the sphere
+*/
+bool ray_sphere_intersection(glm::vec3& int_point, glm::vec3 o, glm::vec3 d, glm::vec3 c, float radius) {
+	glm::vec3 oc = o - c;
+	float A = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+	float B = 2 * glm::dot(d, oc);
+	float C = glm::dot(oc, oc) - radius * radius;
+
+	float dis = B * B - 4 * A * C;
+
+	if (dis > 0) {
+		float t0 = (-B - sqrt(dis)) / (2 * A);
+		float t1 = (-B + sqrt(dis)) / (2 * A);
+		float t = std::min<float>(t0, t1);
+		int_point =  o + glm::vec3(t * d[0], t * d[1], t * d[2]);
+		return true;
+	}
+	return false;
+}
+
+/* handles the intersection between the position under the mouse and the sphere.
+*/
+bool cursor_sphere_intersection(glm::vec3 & int_point, double xpos, double ypos) {
+	glm::vec2 pos2 = viewport_to_view(xpos, ypos);
+
+	glm::vec3 o = view_frame*  glm::vec4(glm::vec3(0.f, 0.f, 0.f),1.f);
+	glm::vec3 d = view_frame*  glm::vec4(glm::vec3(pos2,-2.f),0.f);
+	glm::vec3 c = view_frame*  glm::vec4(glm::vec3(0.f,0.f,-10.f),1.f);
+
+	bool hit = ray_sphere_intersection(int_point, o, d, c, 2.f);
+	if (hit)
+		int_point -= c;
+
+	/* this was left to "return true" in class.. It was a gigantic bug with almost never any consequence, except while 
+	click near the silohuette of the sphere.*/
+	return hit;
+}
+
+/* callback function called when the mouse is moving */
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
-	std::cout << xpos << " " << ypos << " " << std::endl;
 	if (!is_trackball_dragged)
 		return;
 
-	std::cout <<"drag "<< std::endl;
-	/* here the code to create the rotation to apply before rendering the scene.
-	1. build the ray from (0,0,0) in view space going through the window into the scene
-	2. check if the ray intersect the sphere centered in (0,0,0), in world space. 
-	   Try different values for the sphere radius. radius = 2 will be fine.
-	   You also need to store the previous intersection (found in the previous invocation of
-	   this function) in order to have p0 and p1
-	3. with p0 and p1 compute the rotation vector and angle as seen in the slides
-	4. with glm::rotate create the rotation matrix
-	
-	*BE CAREFUL at point 2*: the ray and sphere must be in the same  frame when computing
-	the intersection. 
+	if (cursor_sphere_intersection(p1, xpos, ypos)) {
+		glm::vec3 rotation_vector = glm::cross(glm::normalize(p0), glm::normalize(p1));
 
-	*/
+		/* avoid near null rotation axis*/
+		if (glm::length(rotation_vector) > 0.01) {
+			float alpha = glm::asin(glm::length(rotation_vector));
+			glm::mat4 delta_rot = glm::rotate(glm::mat4(1.f), alpha, rotation_vector);
+			trackball_matrix = delta_rot * trackball_matrix;
+
+			/*p1 becomes the p0 value for the next movement */
+			p0 = p1;
+		}
+	}
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-		/* here the button is pressed  and hence the dragging of the trackball can start*/
-		std::cout << " GLFW_MOUSE_BUTTON_LEFT PRESSED" << std::endl;
+		double xpos, ypos;
+		glfwGetCursorPos(window, &xpos, &ypos);
+		glm::vec3 int_point;
+		if (cursor_sphere_intersection(int_point, xpos, ypos)) {
+			p0 = int_point;
+			std::cout << "p0 " << glm::to_string(p0) << std::endl;
+			is_trackball_dragged = true;
+		}
 	}
-	else 
-		if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
-			/* here the button is pressed  and hence the dragging of the trackball ends*/
-			std::cout << " GLFW_MOUSE_BUTTON_LEFT RELEASED" << std::endl;
-	}
+	else
+		if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) 
+			is_trackball_dragged = false;
 }
 
 
@@ -113,17 +173,24 @@ int main(void)
 	/* create a  cube   centered at the origin with side 2*/
 	renderable r_cube = shape_maker::cube(0.5, 0.3, 0.0);
 
+	/* create a  sphere   centered at the origin with radius 1*/
+	renderable r_sphere = shape_maker::sphere();
+
 	/* create 3 lines showing the reference frame*/
 	renderable r_frame = shape_maker::frame(4.0);
+
 
 	check_gl_errors(__LINE__, __FILE__);
 
 	/* Transformation to setup the point of view on the scene */
 	proj = glm::frustum(-1.f, 1.f, -0.8f, 0.8f, 2.f, 100.f);
 	view = glm::lookAt(glm::vec3(0, 6, 8.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+	view_frame = glm::inverse(view);
+
 	glEnable(GL_DEPTH_TEST);
 
 	matrix_stack stack;
+	trackball_matrix = glm::mat4(1.f);
 
 	/* define the viewport  */
 	glViewport(0, 0, 1000, 800);
@@ -131,40 +198,48 @@ int main(void)
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
-	
-
 		/* Render here */
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	
-			glUseProgram(basic_shader.pr);
-			glUniformMatrix4fv(basic_shader["uP"], 1, GL_FALSE, &proj[0][0]);
-			glUniformMatrix4fv(basic_shader["uV"], 1, GL_FALSE, &view[0][0]);
-			check_gl_errors(__LINE__, __FILE__);
+		glUseProgram(basic_shader.pr);
+		glUniformMatrix4fv(basic_shader["uP"], 1, GL_FALSE, &proj[0][0]);
+		glUniformMatrix4fv(basic_shader["uV"], 1, GL_FALSE, &view[0][0]);
+		check_gl_errors(__LINE__, __FILE__);
+
+		stack.push();
+		stack.mult(trackball_matrix);
+
+		r_cube.bind();
+		stack.push();
+		stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 1.0, 0.2)));
+		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glUniform3f(basic_shader["uColor"], 0.0, 1.0, 0.0);
+		glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+		stack.pop();
+
+		stack.push();
+		stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(1, 0.2, 0.2)));
+		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glUniform3f(basic_shader["uColor"], 1.0, 0.0, 0.0);
+		glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+		stack.pop();
+
+		stack.push();
+		stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2f, 0.2f, 1.f)));
+		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glUniform3f(basic_shader["uColor"], 0.0, 0.0, 1.0);
+		glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+		stack.pop();
 
 
-			r_cube.bind();
-			stack.push();
-			stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 1.0, 0.2)));
-			glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-			glUniform3f(basic_shader["uColor"], 0.0, 1.0, 0.0);
-			glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
-			stack.pop();
+		r_sphere.bind();
+		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glUniform3f(basic_shader["uColor"], 0.8, 0.8, 0.8);
+		glDrawElements(GL_TRIANGLES, r_sphere.in, GL_UNSIGNED_INT, 0);
 
-			stack.push();
-			stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(1, 0.2, 0.2)));
-			glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-			glUniform3f(basic_shader["uColor"], 1.0, 0.0, 0.0);
-			glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
-			stack.pop();
+		/* ******************************************************/
 
-			stack.push();
-			stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2f, 0.2f, 1.f)));
-			glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-			glUniform3f(basic_shader["uColor"], 0.0, 0.0, 1.0);
-			glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
-			stack.pop();
-			/* ******************************************************/
+		stack.pop();
 
 		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 		glUniform3f(basic_shader["uColor"], -1.0, 0.0, 1.0);
