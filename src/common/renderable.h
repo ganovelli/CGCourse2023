@@ -4,6 +4,12 @@
  
 
 struct renderable {
+
+	struct element_array {
+		GLuint ind, elem_type, count;
+		element_array() { }
+	};
+
 	// vertex array object
 	GLuint vao;
 
@@ -12,6 +18,11 @@ struct renderable {
 
 	// element array
 	GLuint ind;
+
+	// vector of element array
+	std::vector<element_array > inds;
+
+	// element arrays (backward compatible implementation)
 
 	// primitive type
 	unsigned int elem_type;
@@ -66,15 +77,26 @@ struct renderable {
 							unsigned int stride = 0,
 							unsigned int offset = 0){ }
 
+	
 	GLuint add_indices(unsigned int * indices, unsigned int count, unsigned int ELEM_TYPE) {
+		std::cout << "deprecated (but working) : use add_element_array" << std::endl;
+		add_element_array(indices, count, ELEM_TYPE);
 		in = count;
+		elem_type = ELEM_TYPE;
+		ind = inds.back().ind;
+		return ind;
+	};
+
+	GLuint add_element_array(unsigned int * indices, unsigned int count, unsigned int ELEM_TYPE) {
+		inds.push_back(element_array());
 		glBindVertexArray(vao);
-		glGenBuffers(1, &ind);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ind);
+		glGenBuffers(1, &inds.back().ind);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, inds.back().ind);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * count, indices, GL_STATIC_DRAW);
 		glBindVertexArray(NULL);
-		elem_type = ELEM_TYPE;
-		return ind;
+		inds.back().elem_type = ELEM_TYPE;
+		inds.back().count = count;
+		return inds.back().ind;
 	};
 };
 

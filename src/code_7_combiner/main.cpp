@@ -31,21 +31,29 @@ bool is_trackball_dragged;
 /* p0 and p1 points on the sphere */
 glm::vec3 p0, p1;
 
-/* matrix to transform the scene according to the trackball */
+/* matrix to transform the scene according to the trackball: rotation only*/
 glm::mat4 trackball_matrix;
 
-renderable r_cube,r_sphere,r_frame;
+/* matrix to transform the scene according to the trackball: scaling only*/
+glm::mat4  scaling_matrix;
+float scaling_factor;
+
+/* object that will be rendered in this scene*/
+renderable r_cube,r_sphere,r_frame, r_plane;
+
+/* program shaders used */
 shader basic_shader,flat_shader;
 
-
-glm::vec2 viewport_to_view(float pX, float pY) {
+/* transform from viewpoert to window coordinates in thee view reference frame */
+glm::vec2 viewport_to_view(double pX, double pY) {
 	glm::vec2 res;
-	res.x = -1 + (pX / 1000) * (1.f - (-1.f));
-	res.y = -0.8 + ((800 - pY) / 800) * (0.8f - (-0.8f));
+	res.x = -1.f + ((float)pX / 1000) * (1.f - (-1.f));
+	res.y = -0.8f + ((800 - (float)pY) / 800) * (0.8f - (-0.8f));
 	return res;
 }
 
 /*
+Computes the first intersection point between a ray and a sphere
 o: origin of the ray
 d: direction of the ray
 c: center of the sphere
@@ -108,6 +116,7 @@ static void cursor_position_callback(GLFWwindow* window, double xpos, double ypo
 	}
 }
 
+/* callback function called when a mouse button is pressed */
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
@@ -116,7 +125,6 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		glm::vec3 int_point;
 		if (cursor_sphere_intersection(int_point, xpos, ypos)) {
 			p0 = int_point;
-			std::cout << "p0 " << glm::to_string(p0) << std::endl;
 			is_trackball_dragged = true;
 		}
 	}
@@ -125,6 +133,12 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			is_trackball_dragged = false;
 }
 
+/* callback function called when a mouse wheel is rotated */
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	scaling_factor *= (yoffset>0) ? 1.1 : 0.97;
+	scaling_matrix = glm::scale(glm::mat4(1.f), glm::vec3(scaling_factor, scaling_factor, scaling_factor));
+}
 
 int main(void)
 {
@@ -147,6 +161,7 @@ int main(void)
 
 	glfwSetCursorPosCallback(window, cursor_position_callback);
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
+	glfwSetScrollCallback(window, scroll_callback);
 
 	/* Make the window's context current */
 	glfwMakeContextCurrent(window);
@@ -156,7 +171,6 @@ int main(void)
 	printout_opengl_glsl_info();
 
 	/* load the shaders */
-	
 	basic_shader.create_program("shaders/basic.vert", "shaders/basic.frag");
 	basic_shader.bind("uP");
 	basic_shader.bind("uV");
@@ -185,19 +199,24 @@ int main(void)
 	check_gl_errors(__LINE__, __FILE__);
 
 	/* create a  cube   centered at the origin with side 2*/
-	r_cube = shape_maker::cube(0.5, 0.3, 0.0);
+	r_cube = shape_maker::cube(0.5f, 0.3f, 0.0);
 
 	/* create a  sphere   centered at the origin with radius 1*/
-	r_sphere = shape_maker::sphere();
+	renderable r_sphere;
+	shape s_sphere;
+	shape_maker::sphere(s_sphere);
+	s_sphere.compute_edge_indices_from_indices();
+	s_sphere.to_renderable(r_sphere);
 
 	/* create 3 lines showing the reference frame*/
 	r_frame = shape_maker::frame(4.0);
+	
+	/* crete a rectangle*/
+	r_plane = shape_maker::rectangle(1, 1);
 
-
-	check_gl_errors(__LINE__, __FILE__);
 
 	/* Transformation to setup the point of view on the scene */
-	proj = glm::frustum(-1.f, 1.f, -0.8f, 0.8f, 2.f, 100.f);
+	proj = glm::frustum(-1.f, 1.f, -0.8f, 0.8f, 2.f, 20.f);
 	view = glm::lookAt(glm::vec3(0, 6, 8.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	view_frame = glm::inverse(view);
 
@@ -205,19 +224,25 @@ int main(void)
 	glUniformMatrix4fv(basic_shader["uP"], 1, GL_FALSE, &proj[0][0]);
 	glUniformMatrix4fv(basic_shader["uV"], 1, GL_FALSE, &view[0][0]);
 	glUseProgram(0);
+
 	glUseProgram(flat_shader.pr);
 	glUniformMatrix4fv(flat_shader["uP"], 1, GL_FALSE, &proj[0][0]);
 	glUniformMatrix4fv(flat_shader["uV"], 1, GL_FALSE, &view[0][0]);
-	glUniform3f(flat_shader["uColor"], 1.0, 1.0, 1.0);
+	glUniform4f(flat_shader["uColor"], 1.0, 1.0, 1.0,1.f);
 	glUseProgram(0);
 	glEnable(GL_DEPTH_TEST);
 
 	matrix_stack stack;
 
-	trackball_matrix = glm::mat4(1.f);
+	trackball_matrix = scaling_matrix = glm::mat4(1.f);
+	scaling_factor = 1.f;
 
 	/* define the viewport  */
 	glViewport(0, 0, 1000, 800);
+
+	/* avoid rendering back faces */
+	// uncomment to see the plane disappear when rotating it
+	// glEnable(GL_CULL_FACE);
 
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
@@ -228,41 +253,55 @@ int main(void)
 		check_gl_errors(__LINE__, __FILE__);
 
 		stack.push();
-		stack.mult(trackball_matrix);
+		stack.mult(scaling_matrix *trackball_matrix);
 
-		//stack.push();
-		//stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1, 0, 1)));
-		//stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(1.5, 1.5, 1.5)));
-		//r_sphere.bind();
-		//glUseProgram(basic_shader.pr);
-		//glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		//glUniform3f(basic_shader["uColor"], 0.8, 0.8, 0.8);
-		//glDrawElements(GL_TRIANGLES, r_sphere.in, GL_UNSIGNED_INT, 0);
-		//glUseProgram(0);
-		//stack.pop();
 
+		/* show a white contour with stenciling */	
 		r_cube.bind();
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.ind);
+
+		// enable the stencil test
+		glEnable(GL_STENCIL_TEST);
+
+		// enable the writing on all the 8 bits of the stencil buffer
+		glStencilMask(0xFF);
+
+		// set the stencil test so that *every* fragment passes
+		glStencilFunc(GL_ALWAYS, 1, 0xFF);
+
+		// all th fragments that pass both stencil and depth test write 1 on the stencil buffer (1 is the reference value passed
+		// in the glStencilFunc call
+		glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
+		glUseProgram(basic_shader.pr);
 		for (int i = 0; i < 4; ++i) {
 			stack.push();
 			stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.35 * i, 0.15 * i, -0.4 * i)));
-			glEnable(GL_STENCIL_TEST);
-			glStencilMask(0xFF);
-			glStencilFunc(GL_ALWAYS, 1, 0xFF);
-			glStencilOp(GL_KEEP, GL_REPLACE, GL_REPLACE);
-
-			glUseProgram(basic_shader.pr);
 			glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 			glUniform3f(basic_shader["uColor"], 1.0, 0.0, 0.0);
 			glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
-			glUseProgram(0);
 			stack.pop();
 		}
+		glUseProgram(0);
+
+		// disallow writing on any of the bits of the stencil buffer
 		glStencilMask(0x00);
 
-		glDisable(GL_DEPTH_TEST);
+		// either disable the depth test or set the depth function so that every fragment passes.
+		// The difference is that is the depth test is disabled you cannot write on the depth buffer.
+		// try one way or another and look for the difference
+
+	glDisable(GL_DEPTH_TEST);
+	//		glDepthFunc(GL_ALWAYS);
+
+		// now it's time to render the scaled up version of the cubes. Set the stencil function to allow
+		// all fragment pass only if the corresponding value on the stencil is not 1 (that is, that pixel
+		// was not covered while rendering the cubes
 		glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
 
 		glUseProgram(flat_shader.pr);
+		glUniform4f(flat_shader["uColor"], 1.f, 1.f, 1.f,1.f);
+
 		for (int i = 0; i < 4; ++i) {
 			stack.push();
 			stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.35 * i, 0.15 * i, -0.4 * i)));
@@ -276,14 +315,69 @@ int main(void)
 		glUseProgram(0);
 
 		glDisable(GL_STENCIL_TEST);
+
+		// restore the depth test function to its default 
 		glEnable(GL_DEPTH_TEST);
+		//glDepthFunc(GL_LESS);
 		glStencilMask(0xFF);
 
+		/*  End contour with stencil	
+		*/
+
+		/* show the spher in flat-wire (filled triangles plus triangle contours) */
+		// step 1: render the shere normally
+		glUseProgram(flat_shader.pr);
+		r_sphere.bind();
+		stack.push();
+		stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.0, 1.f)));
+		glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glUniform4f(basic_shader["uColor"], 1.0, 1.0, 1.0,1.0);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_sphere.inds[1].ind);
+		glDrawElements(GL_LINES, r_sphere.inds[1].count, GL_UNSIGNED_INT, 0);
 
 
+		glUseProgram(basic_shader.pr);
 
+		// enable polygon offset functionality
+		glEnable(GL_POLYGON_OFFSET_FILL);
 
+		// set offset function 
+		glPolygonOffset(1.0, 1.0);
 
+		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glUniform3f(basic_shader["uColor"], 0.8, 0.8, 0.8);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_sphere.ind);
+		glDrawElements(GL_TRIANGLES, r_sphere.in, GL_UNSIGNED_INT, 0);
+		
+		// disable polygon offset
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		stack.pop();
+		//  end flat wire
+
+		/* show a semi transperent plane */
+		// enableblending
+		glEnable(GL_BLEND);
+
+		// set up the blending functions
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		check_gl_errors(__LINE__, __FILE__);
+
+		glUseProgram(flat_shader.pr);
+		r_plane.bind();
+		stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.0, 2.0)));
+		stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(3.0, 3.0, 3.0)));
+		stack.mult(glm::rotate(glm::mat4(1.f),glm::radians(-90.f), glm::vec3(1.0, 0.0, 0.0)));
+		check_gl_errors(__LINE__, __FILE__);
+
+		glUniform4f(flat_shader["uColor"], 0.0, 0.5, 0.0,0.5);
+		glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
+		glUseProgram(0);
+
+		// disable blending
+		glDisable(GL_BLEND);
+		check_gl_errors(__LINE__, __FILE__);
+		// end transparency
 
 		/* ******************************************************/
 
@@ -297,7 +391,7 @@ int main(void)
 		glUseProgram(0);
 
 		check_gl_errors(__LINE__, __FILE__);
-		glUseProgram(0);
+		 
 
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);
