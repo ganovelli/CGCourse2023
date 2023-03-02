@@ -1,7 +1,69 @@
 #pragma once
 #include <GL/glew.h>
 #include <vector>
- 
+#include <glm/glm.hpp>  
+
+
+struct box3
+{
+	/// min coordinate point
+	glm::vec3 min;
+
+	/// max coordinate point
+	glm::vec3 max;
+
+	/// The bounding box constructor
+	inline  box3() { min = glm::vec3(1.f); max = glm::vec3(-1.f); }
+
+	/// Min Max constructor
+	inline  box3(const glm::vec3& mi, const glm::vec3& ma) { min = mi; max = ma; }
+
+	/// The bounding box distructor
+	inline ~box3() { }
+
+	/** Modify the current bbox to contain also the passed point
+	*/
+	void add(const glm::vec3& p)
+	{
+		if (min.x > max.x) { min = max = p; }
+		else
+		{
+			if (min.x > p.x) min.x = p.x;
+			if (min.y > p.y) min.y = p.y;
+			if (min.z > p.z) min.z = p.z;
+
+			if (max.x < p.x) max.x = p.x;
+			if (max.y < p.y) max.y = p.y;
+			if (max.z < p.z) max.z = p.z;
+		}
+	}
+
+	bool is_empty() const { return min == max; }
+
+	float diagonal() const
+	{
+		return glm::length(min - max);
+	}
+
+	glm::vec3 center() const
+	{
+		return (min + max) * 0.5f;
+	}
+
+};
+
+struct material {
+	std::string name;
+
+	float  ambient[3];
+	float  diffuse[3];
+	float  specular[3];
+	float  transmittance[3];
+	float  emission[3];
+	float  shininess;
+	float  ior;       // index of refraction
+	float  dissolve;  // 1 == opaque; 0 == fully transparent
+};
 
 struct renderable {
 
@@ -26,12 +88,17 @@ struct renderable {
 
 	// primitive type
 	unsigned int elem_type;
-	
+
 	// number of vertices
 	unsigned int vn;
 
 	// number of indices
 	unsigned int in;
+
+	// bounding box of the shape
+	box3 bbox;
+
+	material mtl;
 
 	void create() {
 		glGenVertexArrays(1, &vao);
@@ -40,6 +107,31 @@ struct renderable {
 	void bind() {
 		glBindVertexArray(vao);
 	}
+
+	GLuint assign_vertex_attribute(unsigned int va_id, unsigned int count,
+		unsigned int attribute_index,
+		unsigned int num_components,
+		unsigned int TYPE,
+		unsigned int stride = 0,
+		unsigned int offset = 0) {
+
+		vn = count;
+
+		glBindVertexArray(vao);
+
+		/* create a buffer for the render data in video RAM */
+		vbos.push_back(va_id);
+		
+		glBindBuffer(GL_ARRAY_BUFFER, vbos.back());
+		glEnableVertexAttribArray(attribute_index);
+
+		/* specify the data format */
+		glVertexAttribPointer(attribute_index, num_components, TYPE, false, stride, (void*)(size_t)offset);
+
+		glBindVertexArray(NULL);
+		return vbos.back();
+	}
+
 
 	template <class T>
 	GLuint add_vertex_attribute(T* values, unsigned int count,
@@ -64,21 +156,21 @@ struct renderable {
 		glEnableVertexAttribArray(attribute_index);
 
 		/* specify the data format */
-		glVertexAttribPointer(attribute_index, num_components, TYPE, false, stride,(void*)  (size_t) offset  );
+		glVertexAttribPointer(attribute_index, num_components, TYPE, false, stride, (void*)(size_t)offset);
 
 		glBindVertexArray(NULL);
 		return vbos.back();
 	}
 
 	template <class T>
-	GLuint add_vertex_attribute(	T * values,unsigned int count,
-							unsigned int attribute_index,
-							unsigned int num_components,
-							unsigned int stride = 0,
-							unsigned int offset = 0){ }
+	GLuint add_vertex_attribute(const T* values, unsigned int count,
+		unsigned int attribute_index,
+		unsigned int num_components,
+		unsigned int stride = 0,
+		unsigned int offset = 0) { }
 
-	
-	GLuint add_indices(unsigned int * indices, unsigned int count, unsigned int ELEM_TYPE) {
+
+	GLuint add_indices(unsigned int* indices, unsigned int count, unsigned int ELEM_TYPE) {
 		std::cout << "deprecated (but working) : use add_element_array" << std::endl;
 		add_element_array(indices, count, ELEM_TYPE);
 		in = count;
@@ -87,7 +179,7 @@ struct renderable {
 		return ind;
 	};
 
-	GLuint add_element_array(unsigned int * indices, unsigned int count, unsigned int ELEM_TYPE) {
+	GLuint add_element_array(void* indices, unsigned int count, unsigned int ELEM_TYPE) {
 		inds.push_back(element_array());
 		glBindVertexArray(vao);
 		glGenBuffers(1, &inds.back().ind);
@@ -98,13 +190,15 @@ struct renderable {
 		inds.back().count = count;
 		return inds.back().ind;
 	};
+
 };
 
 template <>
-GLuint renderable::add_vertex_attribute(float * values, unsigned int count,
+GLuint renderable::add_vertex_attribute(const float* values, unsigned int count,
 	unsigned int attribute_index,
 	unsigned int num_components,
 	unsigned int stride,
-	unsigned int offset) { 
- 	return this->add_vertex_attribute(values, count, attribute_index, num_components, (unsigned int) GL_FLOAT, stride, offset);
+	unsigned int offset) {
+	return this->add_vertex_attribute(values, count, attribute_index, num_components, (unsigned int)GL_FLOAT, stride, offset);
 }
+

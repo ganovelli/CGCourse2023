@@ -5,6 +5,7 @@
 struct shape {
 	std::vector<float> positions;
 	std::vector<float> colors;
+	std::vector<float> normals;
 	std::vector<unsigned int> indices;
 	std::vector<unsigned int> edge_indices;
 	unsigned int vn, fn;
@@ -12,6 +13,9 @@ struct shape {
 	void to_renderable(renderable & r) {
 		r.create();
 		r.add_vertex_attribute<float>(&positions[0], 3*vn, 0, 3);
+		if (!normals.empty())
+			r.add_vertex_attribute<float>(&normals[0], 3 * vn, 2, 3);
+
 		if(!colors.empty())
 			r.add_vertex_attribute<float>(&colors[0], 3 * vn, 1, 3);
 		if(!indices.empty())
@@ -112,6 +116,24 @@ struct shape_maker {
 		 // LINES definition
 		 ////////////////////////////////////////////////////////////
 		 s.vn = 6;
+		 renderable res;
+		 s.to_renderable(res);
+		 return res;
+	 }
+
+	 static renderable line(float length = 1.f) {
+		 shape  s;
+		 // vertices definition
+		 ////////////////////////////////////////////////////////////
+		 s.positions = {
+			 0.0,0.0,0.0,
+			 0.0,1.0,0.0
+		 };
+		 s.positions[4] *= length;
+
+		 // LINES definition
+		 ////////////////////////////////////////////////////////////
+		 s.vn = 2;
 		 renderable res;
 		 s.to_renderable(res);
 		 return res;
@@ -224,10 +246,15 @@ struct shape_maker {
 		 s.positions.resize(3*(nX + 1)*(nY + 1));
 		 for (unsigned int i = 0; i < nX + 1; ++i)
 			 for (unsigned int j = 0; j < nY + 1; ++j){
-				 s.positions[3 * (j*(nX + 1) + i) + 0] = -1.f + 2 * i / float(nX);
+				 s.positions[3 * (j*(nX + 1) + i) + 0] =-1.f + 2 * j / float(nY);
 				 s.positions[3 * (j*(nX + 1) + i) + 1] = 0.f;
-				 s.positions[3 * (j*(nX + 1) + i) + 2] = -1.f + 2 * j / float(nY);
+				 s.positions[3 * (j*(nX + 1) + i) + 2] =  -1.f + 2 * i / float(nX);
 			 }
+		 for (unsigned int i = 0; i < s.positions.size() / 3; ++i) {
+			 s.normals.push_back(0.0);
+			 s.normals.push_back(1.0);
+			 s.normals.push_back(0.0);
+		 }
 
 
 		 for (unsigned int i = 0; i < nX ; ++i)
@@ -323,6 +350,14 @@ struct shape_maker {
 		-0.757935f, -0.453991f, -0.46843f, -0.371748f, -0.601501f, -0.707107f, -0.453991f, -0.46843f, -0.757935f, -0.346153f, -0.783452f, -0.516122f, -0.296005f, -0.70231f, -0.647412f, -0.213023f, -0.792649f, -0.571252f, -0.783452f, -0.516122f, -0.346153f, -0.70231f, -0.647412f, -0.296005f, -0.792649f, -0.571252f, -0.213023f, -0.516122f, -0.346153f, -0.783452f,
 		-0.647412f, -0.296005f, -0.70231f, -0.571252f, -0.213023f, -0.792649f 
 		 };
+
+		 for (unsigned int i = 0; i < s.positions.size()/3; ++i) {
+			 glm::vec3 p(s.positions[i * 3], s.positions[i * 3 + 1], s.positions[i * 3 + 2]);
+			 p = glm::normalize(p);
+			 s.normals.push_back(p.x);
+			 s.normals.push_back(p.y);
+			 s.normals.push_back(p.z);
+		 }
 
 		 s.indices = {
 			 0, 1, 2, 3, 0, 2, 4, 1, 0, 5, 2, 1, 6, 2, 7, 8, 6, 7, 3, 2, 6, 5, 7, 2, 9, 0, 10, 11, 9, 10,
