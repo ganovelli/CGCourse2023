@@ -52,6 +52,18 @@ struct box3
 
 };
 
+struct material {
+	std::string name;
+
+	float  ambient[3];
+	float  diffuse[3];
+	float  specular[3];
+	float  transmittance[3];
+	float  emission[3];
+	float  shininess;
+	float  ior;       // index of refraction
+	float  dissolve;  // 1 == opaque; 0 == fully transparent
+};
 
 struct renderable {
 
@@ -85,6 +97,8 @@ struct renderable {
 
 	// bounding box of the shape
 	box3 bbox;
+
+	material mtl;
 
 	void create() {
 		glGenVertexArrays(1, &vao);

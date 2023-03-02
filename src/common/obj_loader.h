@@ -32,7 +32,7 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 	auto materials = reader.GetMaterials();
 
 
-	rs.resize(shapes.size());
+	
 	// create the vertex attributes
 	std::vector<tinyobj::real_t>   pos = attrib.GetVertices();
 	std::vector<tinyobj::real_t>   norms = attrib.normals;
@@ -110,19 +110,38 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 	for (unsigned int i = 0; i < v_pos.size() / 3; ++i)
 		bbox.add(glm::vec3(v_pos[3 * i], v_pos[3 * i + 1], v_pos[3 * i + 2]));
 
+	// split the shapes so that each shape has the same index material
+	std::vector<tinyobj::shape_t> mshapes;
+	std::vector<int> mat_ids;
+	for (unsigned int is = 0; is < shapes.size(); ++is) {
+		unsigned int fi = 0;
+		do {
+			int mat_ind = shapes[is].mesh.material_ids[fi];
+			mshapes.push_back(tinyobj::shape_t());
+			mat_ids.push_back(mat_ind);
+			while (fi < shapes[is].mesh.material_ids.size() &&
+				shapes[is].mesh.material_ids[fi] == mat_ind) {
+				mshapes.back().mesh.indices.push_back(shapes[is].mesh.indices[fi*3    ]);
+				mshapes.back().mesh.indices.push_back(shapes[is].mesh.indices[fi * 3+1]);
+				mshapes.back().mesh.indices.push_back(shapes[is].mesh.indices[fi * 3+2]);
+				++fi;
+			}
 
+		} while (fi < shapes[is].mesh.material_ids.size());
+	}
+
+	// resize the vector of renderable
+	rs.resize(mshapes.size());
 
     // create the vertex array buffers and share them between all renderables
     rs[0].create();
     rs[0].add_vertex_attribute(&v_pos[0], (unsigned int)v_pos.size(), 0, 3);
     rs[0].bbox = bbox;
 
-
 	if (!v_norm.empty())
 		rs[0].add_vertex_attribute(&v_norm[0], (unsigned int)v_norm.size(), 2, 3);
 
-
-    for (unsigned int  i = 1; i < shapes.size();++i) {
+    for (unsigned int  i = 1; i < mshapes.size();++i) {
         rs[i].create();
         rs[i].assign_vertex_attribute(rs[0].vbos[0], (unsigned int)v_pos.size() / 3, 0, 3,GL_FLOAT);
 
@@ -130,53 +149,23 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 			rs[i].assign_vertex_attribute(rs[0].vbos[1], (unsigned int)v_norm.size() / 3, 2, 3, GL_FLOAT);
 	}
 
-    for (unsigned int is = 0; is < shapes.size();++is) { 
+    for (unsigned int is = 0; is < mshapes.size();++is) { 
         std::vector<unsigned int> inds;
-         for (size_t f = 0; f < shapes[is].mesh.indices.size(); f++) 
-             inds.push_back(static_cast<unsigned int>(shapes[is].mesh.indices[f].vertex_index));
-        rs[is].add_element_array(&inds[0], shapes[is].mesh.indices.size(), GL_TRIANGLES);
+         for (size_t f = 0; f < mshapes[is].mesh.indices.size(); f++) 
+             inds.push_back(static_cast<unsigned int>(mshapes[is].mesh.indices[f].vertex_index));
+        rs[is].add_element_array(&inds[0], mshapes[is].mesh.indices.size(), GL_TRIANGLES);
     }
 
-    // Loop over shapes
-    //for (size_t s = 0; s < shapes.size(); s++) {
-    //    // Loop over faces(polygon)
-    //    size_t index_offset = 0;
-    //    for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-    //        size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
-
-    //        // Loop over vertices in the face.
-    //        for (size_t v = 0; v < fv; v++) {
-    //            // access to vertex
-    //            tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-    //            tinyobj::real_t vx = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
-    //            tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
-    //            tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
-
-    //            // Check if `normal_index` is zero or positive. negative = no normal data
-    //            if (idx.normal_index >= 0) {
-    //                tinyobj::real_t nx = attrib.normals[3 * size_t(idx.normal_index) + 0];
-    //                tinyobj::real_t ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
-    //                tinyobj::real_t nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
-    //            }
-
-    //            // Check if `texcoord_index` is zero or positive. negative = no texcoord data
-    //            if (idx.texcoord_index >= 0) {
-    //                tinyobj::real_t tx = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
-    //                tinyobj::real_t ty = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
-    //            }
-
-    //            // Optional: vertex colors
-    //            // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
-    //            // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
-    //            // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
-    //        }
-    //        index_offset += fv;
-
-    //        // per-face material
-    //        shapes[s].mesh.material_ids[f];
-    //    }
-    //}
-
-
-
+	for (unsigned int is = 0; is < mshapes.size(); ++is) {
+		tinyobj::material_t & m= materials[mat_ids[is]];
+		rs[is].mtl.name = m.name;
+		memcpy_s(rs[is].mtl.ambient,sizeof(float)*3,m.ambient, sizeof(float) * 3);
+		memcpy_s(rs[is].mtl.diffuse, sizeof(float) * 3, m.diffuse, sizeof(float) * 3);
+		memcpy_s(rs[is].mtl.specular, sizeof(float) * 3, m.specular, sizeof(float) * 3);
+		memcpy_s(rs[is].mtl.transmittance, sizeof(float) * 3, m.transmittance, sizeof(float) * 3);
+		memcpy_s(rs[is].mtl.emission, sizeof(float) * 3, m.emission, sizeof(float) * 3);
+		rs[is].mtl.shininess = m.shininess;
+		rs[is].mtl.ior = m.ior;        
+		rs[is].mtl.dissolve = m.dissolve;   
+	}
 }
