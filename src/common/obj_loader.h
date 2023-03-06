@@ -156,16 +156,17 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
         rs[is].add_element_array(&inds[0], mshapes[is].mesh.indices.size(), GL_TRIANGLES);
     }
 
-	for (unsigned int is = 0; is < mshapes.size(); ++is) {
-		tinyobj::material_t & m= materials[mat_ids[is]];
-		rs[is].mtl.name = m.name;
-		memcpy_s(rs[is].mtl.ambient,sizeof(float)*3,m.ambient, sizeof(float) * 3);
-		memcpy_s(rs[is].mtl.diffuse, sizeof(float) * 3, m.diffuse, sizeof(float) * 3);
-		memcpy_s(rs[is].mtl.specular, sizeof(float) * 3, m.specular, sizeof(float) * 3);
-		memcpy_s(rs[is].mtl.transmittance, sizeof(float) * 3, m.transmittance, sizeof(float) * 3);
-		memcpy_s(rs[is].mtl.emission, sizeof(float) * 3, m.emission, sizeof(float) * 3);
-		rs[is].mtl.shininess = m.shininess;
-		rs[is].mtl.ior = m.ior;        
-		rs[is].mtl.dissolve = m.dissolve;   
-	}
+	if(!materials.empty())
+		for (unsigned int is = 0; is < mshapes.size(); ++is) {
+			tinyobj::material_t & m= materials[mat_ids[is]];
+			rs[is].mtl.name = m.name;
+			memcpy_s(rs[is].mtl.ambient,sizeof(float)*3,m.ambient, sizeof(float) * 3);
+			memcpy_s(rs[is].mtl.diffuse, sizeof(float) * 3, m.diffuse, sizeof(float) * 3);
+			memcpy_s(rs[is].mtl.specular, sizeof(float) * 3, m.specular, sizeof(float) * 3);
+			memcpy_s(rs[is].mtl.transmittance, sizeof(float) * 3, m.transmittance, sizeof(float) * 3);
+			memcpy_s(rs[is].mtl.emission, sizeof(float) * 3, m.emission, sizeof(float) * 3);
+			rs[is].mtl.shininess = m.shininess;
+			rs[is].mtl.ior = m.ior;        
+			rs[is].mtl.dissolve = m.dissolve;   
+		}
 }
