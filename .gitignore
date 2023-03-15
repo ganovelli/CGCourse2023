@@ -69,3 +69,9 @@ build/code_2_wrapping/code_2_wrapping.vcxproj.filters
 *.user
 *.user
 *.iobj
+src/code_9_load_shade/models
+src/code_10_shading_imgui/models
+src/code_11_textures/models
+src/code_11_textures/textures
+src/code_12_bump_mapping/models
+src/code_12_bump_mapping/textures

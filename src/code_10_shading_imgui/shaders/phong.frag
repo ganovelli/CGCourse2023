@@ -6,6 +6,11 @@ in vec3 vLdirVS;
 in vec3 vposVS; 
 uniform int uShadingMode;
 uniform vec3 uDiffuseColor;
+uniform vec3 uAmbientColor;
+uniform vec3 uSpecularColor;
+uniform vec3 uEmissiveColor;
+uniform float uShininess;
+uniform float uRefractionIndex;
 
 
 /* Phong */
@@ -16,7 +21,7 @@ vec3 phong ( vec3 L, vec3 pos, vec3 N){
 	vec3 R = -L+2*dot(L,N)*N;
 	float spec = max(0.0,pow(dot(V,R),10));
 
-	return LN*uDiffuseColor + spec * uDiffuseColor*vec3(0.2,0.2,0.8);
+	return LN*uDiffuseColor + spec * uSpecularColor+0.0*uEmissiveColor;
 }
 
 void main(void) 
