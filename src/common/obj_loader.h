@@ -6,8 +6,14 @@
 #include <glm/glm.hpp>  
 #include <glm/ext.hpp>  
 #include <glm/gtx/string_cast.hpp>
-
 #include <iostream>
+
+
+
+struct v_nor_tex : public std::pair<int,int>{
+	v_nor_tex() { first = second = -1; }
+	v_nor_tex(int f, int s) { first = f; second =s; }
+};
 
 static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 
@@ -31,18 +37,19 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 	auto shapes = reader.GetShapes();
 	auto materials = reader.GetMaterials();
 
-
-	
 	// create the vertex attributes
 	std::vector<tinyobj::real_t>   pos = attrib.GetVertices();
 	std::vector<tinyobj::real_t>   norms = attrib.normals;
-	std::vector<tinyobj::real_t>   v_norm,v_pos;
+	std::vector<tinyobj::real_t>   t_coords = attrib.texcoords;
+	std::vector<tinyobj::real_t>   v_norm,v_pos,v_tcoord;
 
 
-	if (!norms.empty()) {
-		unsigned int nv = pos.size() / 3;
-		std::vector<int> norm_id, skip_to, pos_id;
-		norm_id.resize(nv, -1);
+	if (!norms.empty() || !t_coords.empty()) {
+		unsigned int nv = (unsigned int) pos.size() / 3;
+		std::vector<int>  skip_to, pos_id;
+		std::vector<v_nor_tex> tn_id;
+
+		tn_id.resize(nv,v_nor_tex());
 		pos_id.resize(nv, 0);
 		for (unsigned int ii = 0; ii < pos_id.size(); ii++) pos_id[ii] = ii;
 
@@ -54,25 +61,25 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 			{
 				tinyobj::index_t &  id = shapes[is].mesh.indices[f];
 				int vi = id.vertex_index;
-				while (skip_to[vi] != -1 && (norm_id[vi] != -1) && (norm_id[vi] != id.normal_index)) {
+				while (skip_to[vi] != -1 && (tn_id[vi] != v_nor_tex() ) && (tn_id[vi] != v_nor_tex(id.normal_index,id.texcoord_index))) {
 					vi = skip_to[vi];
 				}
-				if ((norm_id[vi] == id.normal_index)) { // a vertex with the right normal is found
+				if ((tn_id[vi] == v_nor_tex(id.normal_index, id.texcoord_index))) { // a vertex with the right normal is found
 					id.vertex_index = vi;
-					norm_id[vi] = id.normal_index;
+					tn_id[vi] = v_nor_tex(id.normal_index, id.texcoord_index);
 				}
 				else {
-					if (norm_id[vi] == -1) { // a vertex with unassigned normal is found
+					if (tn_id[vi] == v_nor_tex()) { // a vertex with unassigned normal is found
 						id.vertex_index = vi;
-						norm_id[vi] = id.normal_index;
+						tn_id[vi] = v_nor_tex(id.normal_index, id.texcoord_index);
 					}
 					else {// a new vertex must be added
 						assert(skip_to[vi] == -1);
-						skip_to[vi] = pos_id.size();
+						skip_to[vi] = (int) pos_id.size();
 						skip_to.push_back(-1);
 						pos_id.push_back(pos_id[id.vertex_index]); // make a new vertex with the same position..
-						id.vertex_index = pos_id.size() - 1;
-						norm_id.push_back(id.normal_index);		 // ..and the new normal		
+						id.vertex_index = (int)pos_id.size() - 1;
+						tn_id.push_back(v_nor_tex(id.normal_index, id.texcoord_index));		 // ..and the new normal		
 					}
 				}
 			}
@@ -86,7 +93,8 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 				assert(shapes[is].mesh.indices[f].vertex_index >= 0);
 				assert(shapes[is].mesh.indices[f].vertex_index < pos_id.size());
 				assert(shapes[is].mesh.indices[f].normal_index >= 0);
-				assert(norm_id[shapes[is].mesh.indices[f].normal_index] >= 0);
+				assert(tn_id[shapes[is].mesh.indices[f].normal_index].first >= 0);
+				assert(tn_id[shapes[is].mesh.indices[f].normal_index].second >= 0);
 			}
 		}
 
@@ -97,9 +105,14 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 		}
 
 		for (unsigned int i = 0; i < pos_id.size(); ++i) {
-			v_norm.push_back(norms[norm_id[i] * 3]);
-			v_norm.push_back(norms[norm_id[i] * 3 + 1]);
-			v_norm.push_back(norms[norm_id[i] * 3 + 2]);
+			v_norm.push_back(norms[tn_id[i].first * 3]);
+			v_norm.push_back(norms[tn_id[i].first * 3 + 1]);
+			v_norm.push_back(norms[tn_id[i].first * 3 + 2]);
+		}
+
+		for (unsigned int i = 0; i < pos_id.size(); ++i) {
+			v_tcoord.push_back(t_coords[tn_id[i].second * 2]);
+			v_tcoord.push_back(t_coords[tn_id[i].second * 2 + 1]);
 		}
 	}
 	else
@@ -141,19 +154,25 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 	if (!v_norm.empty())
 		rs[0].add_vertex_attribute(&v_norm[0], (unsigned int)v_norm.size(), 2, 3);
 
-    for (unsigned int  i = 1; i < mshapes.size();++i) {
+	if (!v_tcoord.empty())
+		rs[0].add_vertex_attribute(&v_tcoord[0], (unsigned int)v_tcoord.size(), 3, 2);
+	
+	for (unsigned int  i = 1; i < mshapes.size();++i) {
         rs[i].create();
         rs[i].assign_vertex_attribute(rs[0].vbos[0], (unsigned int)v_pos.size() / 3, 0, 3,GL_FLOAT);
 
 		if (!v_norm.empty())
 			rs[i].assign_vertex_attribute(rs[0].vbos[1], (unsigned int)v_norm.size() / 3, 2, 3, GL_FLOAT);
+
+		if (!v_tcoord.empty())
+			rs[i].assign_vertex_attribute(rs[0].vbos[2], (unsigned int)v_tcoord.size() / 2, 3, 2, GL_FLOAT);
 	}
 
     for (unsigned int is = 0; is < mshapes.size();++is) { 
         std::vector<unsigned int> inds;
          for (size_t f = 0; f < mshapes[is].mesh.indices.size(); f++) 
              inds.push_back(static_cast<unsigned int>(mshapes[is].mesh.indices[f].vertex_index));
-        rs[is].add_element_array(&inds[0], mshapes[is].mesh.indices.size(), GL_TRIANGLES);
+        rs[is].add_element_array(&inds[0], (int) mshapes[is].mesh.indices.size(), GL_TRIANGLES);
     }
 
 	if(!materials.empty())
@@ -168,5 +187,12 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 			rs[is].mtl.shininess = m.shininess;
 			rs[is].mtl.ior = m.ior;        
 			rs[is].mtl.dissolve = m.dissolve;   
+
+			if (!m.diffuse_texname.empty()) 
+				rs[is].mtl.diffuse_texture.load(m.diffuse_texname,0);
+			if (!m.ambient_texname.empty())
+				rs[is].mtl.ambient_texture.load(m.ambient_texname,1);
+			if (!m.specular_texname.empty())
+			 	rs[is].mtl.specular_texture.load(m.specular_texname,2);
 		}
 }
