@@ -15,7 +15,8 @@ void main(void)
 		otherwise use the color interpolated from the vertices */
 	if(uColor.x >= 0.0){ 
 			color = vec4(uColor, 1.0); 
-			color = (flat_shading(vec3(0,10,0))+flat_shading(vec3(0,10,0))+flat_shading(vec3(0,10,0))+flat_shading(vec3(0,-10,0)))*0.25*color;
+			if(uColor.x !=1.0 ||  uColor.y !=1.0 ||  uColor.z != 1.0)
+				color = (flat_shading(vec3(0,10,0))+flat_shading(vec3(0,10,0))+flat_shading(vec3(0,10,0))+flat_shading(vec3(0,-10,0)))*0.25*color;
 		}
 		else
 			color = vec4(vColor, 1.0); 

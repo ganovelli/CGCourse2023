@@ -127,6 +127,16 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			p0 = int_point;
 			is_trackball_dragged = true;
 		}
+
+		float depthvalue;
+		glReadPixels(xpos, 800 - ypos, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depthvalue);
+		glm::vec3 hit = glm::unProject(glm::vec3(xpos, 800 - ypos, depthvalue), view , proj, glm::vec4(0, 0, 1000, 800));
+		std::cout << " hit point " << glm::to_string(hit) << std::endl;
+
+		GLfloat col[4];
+		glReadPixels(xpos, 800 - ypos, 1, 1, GL_RGBA, GL_FLOAT, &col);
+		std::cout << " rgba " << col[0]*255.f << " " << col[1] * 255.f << " " <<col[2] * 255.f << " "<< col[3] * 255.f  << std::endl;
+
 	}
 	else
 		if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) 
@@ -248,8 +258,9 @@ int main(void)
 	while (!glfwWindowShouldClose(window))
 	{
 		/* Render here */
+		glClearColor(0.0, 0.0, 0.0, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
+	//	goto fin;
 		check_gl_errors(__LINE__, __FILE__);
 
 		stack.push();
@@ -392,7 +403,7 @@ int main(void)
 
 		check_gl_errors(__LINE__, __FILE__);
 		 
-
+fin:
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);
 

@@ -2,7 +2,7 @@
 #include <GL/glew.h>
 #include <vector>
 #include <glm/glm.hpp>  
-
+#include "texture.h"
 
 struct box3
 {
@@ -52,6 +52,7 @@ struct box3
 
 };
 
+
 struct material {
 	std::string name;
 
@@ -63,6 +64,8 @@ struct material {
 	float  shininess;
 	float  ior;       // index of refraction
 	float  dissolve;  // 1 == opaque; 0 == fully transparent
+
+	texture ambient_texture,diffuse_texture,specular_texture;
 };
 
 struct renderable {

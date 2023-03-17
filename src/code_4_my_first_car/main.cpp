@@ -1,3 +1,4 @@
+
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <string>
@@ -79,7 +80,7 @@ int main(void)
     {
 		it++;
 		/*incremente the rotation by 0.01 radians*/
-		R = glm::rotate(R, 0.01f, glm::vec3(0.f, 1.f, 0.f));
+		R = glm::rotate(R, 0.5f, glm::vec3(0.f, 1.f, 0.f));
 
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
