@@ -17,7 +17,7 @@
 #include "..\common\trackball.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
-
+#define STB_IMAGE_IMPLEMENTATION
 
 #include "..\common\obj_loader.h"
 
@@ -47,7 +47,7 @@ glm::mat4 view ;
 renderable r_cube,r_sphere,r_frame, r_plane,r_line;
 
 /* program shaders used */
-shader phong_shader,flat_shader;
+shader texture_shader,flat_shader;
 
 
 void draw_line(glm::vec4 l) {
@@ -134,25 +134,20 @@ int main(void)
 
 
 	/* load the shaders */
-	std::string shaders_path = "../../src/code_10_shading_imgui/shaders/";
-	phong_shader.create_program((shaders_path+"phong.vert").c_str(), (shaders_path+"phong.frag").c_str());
-	phong_shader.bind("uP");
-	phong_shader.bind("uV");
-	phong_shader.bind("uT");
-	phong_shader.bind("uDiffuseColor");
-	phong_shader.bind("uAmbientColor");
-	phong_shader.bind("uSpecularColor");
-	phong_shader.bind("uEmissiveColor");
-	phong_shader.bind("uRefractionIndex");
-	phong_shader.bind("uShininess");
-	phong_shader.bind("uLdir");
-	phong_shader.bind("uShadingMode");
+	std::string shaders_path = "../../src/code_11_textures/shaders/";
+	texture_shader.create_program((shaders_path+"texture.vert").c_str(), (shaders_path+"texture.frag").c_str());
+	texture_shader.bind("uP");
+	texture_shader.bind("uV");
+	texture_shader.bind("uT");
+	texture_shader.bind("uShadingMode");
+	texture_shader.bind("uDiffuseColor");
+	texture_shader.bind("uTextureImage");
 
-	check_shader(phong_shader.vs);
-	check_shader(phong_shader.fs);
-	validate_shader_program(phong_shader.pr);
+	check_shader(texture_shader.vs);
+	check_shader(texture_shader.fs);
+	validate_shader_program(texture_shader.pr);
 
-	flat_shader.create_program((shaders_path + "phong.vert").c_str(), (shaders_path + "flat.frag").c_str());
+	flat_shader.create_program((shaders_path + "texture.vert").c_str(), (shaders_path + "flat.frag").c_str());
 	flat_shader.bind("uP");
 	flat_shader.bind("uV");
 	flat_shader.bind("uT");
@@ -162,8 +157,8 @@ int main(void)
 	validate_shader_program(flat_shader.pr);
 
 	/* Set the uT matrix to Identity */
-	glUseProgram(phong_shader.pr);
-	glUniformMatrix4fv(phong_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
+	glUseProgram(texture_shader.pr);
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
 	glUseProgram(flat_shader.pr);
 	glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
 	glUseProgram(0);
@@ -195,7 +190,7 @@ int main(void)
 	s_plane.to_renderable(r_plane);
 
 	/* load from file */
-	std::string models_path = "../../src/code_10_shading_imgui/models/boot";
+	std::string models_path = "../../src/code_11_textures/models/boot";
 	_chdir(models_path.c_str());
 
 	std::vector<renderable> r_cb;
@@ -210,9 +205,9 @@ int main(void)
 	view = glm::lookAt(glm::vec3(0, 6, 8.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	
 
-	glUseProgram(phong_shader.pr);
-	glUniformMatrix4fv(phong_shader["uP"], 1, GL_FALSE, &proj[0][0]);
-	glUniformMatrix4fv(phong_shader["uV"], 1, GL_FALSE, &view[0][0]);
+	glUseProgram(texture_shader.pr);
+	glUniformMatrix4fv(texture_shader["uP"], 1, GL_FALSE, &proj[0][0]);
+	glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &view[0][0]);
 	glUseProgram(0);
 
 	glUseProgram(flat_shader.pr);
@@ -243,6 +238,7 @@ int main(void)
 	float slope = 1.0;
 	float eta_2 = 1.0;
 	/* Loop until the user closes the window */
+	check_gl_errors(__LINE__, __FILE__);
 	while (!glfwWindowShouldClose(window))
 	{
 		/* Render here */
@@ -281,9 +277,10 @@ int main(void)
 		glUniform4f(flat_shader["uColor"], 1.0, 1.0, 1.0,1.0);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.inds[1].ind);
 		glDrawElements(GL_LINES, r_plane.inds[1].count, GL_UNSIGNED_INT, 0);
+		check_gl_errors(__LINE__, __FILE__);
 
 		//step 2: render the triangles
-		glUseProgram(phong_shader.pr);
+		glUseProgram(texture_shader.pr);
 
 		// enable polygon offset functionality
 		glEnable(GL_POLYGON_OFFSET_FILL);
@@ -291,11 +288,11 @@ int main(void)
 		// set offset function 
 		glPolygonOffset(1.0, 1.0);
 
-		glUniformMatrix4fv(phong_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		
+		check_gl_errors(__LINE__, __FILE__);
 
-		glUniform1i(phong_shader["uShadingMode"], selected);
-		glUniform3f(phong_shader["uDiffuseColor"], 0.8f,0.8f,0.8f);
+		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glUniform1i(texture_shader["uShadingMode"], selected);
+		glUniform3f(texture_shader["uDiffuseColor"], 0.8f,0.8f,0.8f);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
 		glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
 		
@@ -305,17 +302,17 @@ int main(void)
 		//  end flat-wire rendering of the plane
 		
 		// render the reference frame
-		glUseProgram(phong_shader.pr);
-		glUniformMatrix4fv(phong_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glUseProgram(texture_shader.pr);
+		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 		// a negative x component is used to tell the shader to use the vertex color as is (that is, no lighting is computed)
-		glUniform3f(phong_shader["uDiffuseColor"], -1.0, 0.0, 1.0); 
+		glUniform3f(texture_shader["uDiffuseColor"], -1.0, 0.0, 1.0); 
 		r_frame.bind();
 		glDrawArrays(GL_LINES, 0, 6);
 		glUseProgram(0);
 
-		glUseProgram(phong_shader.pr);
-		glUniform4fv(phong_shader["uLdir"],1,&curr_Ldir[0]);
-		glUniform1i(phong_shader["uShadingMode"], selected);
+		glUseProgram(texture_shader.pr);
+		glUniform1i(texture_shader["uTextureImage"], 0);
+		glUniform1i(texture_shader["uShadingMode"], selected);
 
 		// uncomment to draw the sphere
 		//r_sphere.bind();
@@ -329,26 +326,28 @@ int main(void)
 		*/
 		if (!r_cb.empty()) {
 			stack.push();
-
 			/*scale the object using the diagonal of the bounding box of the vertices position.
 			This operation guarantees that the drawing will be inside the unit cube.*/
 			float diag = r_cb[0].bbox.diagonal();
 			stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(1.f / diag, 1.f / diag, 1.f / diag)));
+			check_gl_errors(__LINE__, __FILE__);
 
-			glUniformMatrix4fv(phong_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+			glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 
+			glActiveTexture(GL_TEXTURE0);
 			for (unsigned int is = 0; is < r_cb.size(); is++) {
 				r_cb[is].bind();
 				/* every renderable object has its own material. Here just the diffuse color is used.
 				ADD HERE CODE TO PASS OTHE MATERIAL PARAMETERS.
 				*/
-				glUniform3fv(phong_shader["uDiffuseColor"],1,&r_cb[is].mtl.diffuse[0]);
-				glUniform3fv(phong_shader["uSpecularColor"], 1, &r_cb[is].mtl.specular[0]);
-				glUniform3fv(phong_shader["uAmbientColor"], 1, &r_cb[is].mtl.ambient[0]);
-				glUniform3fv(phong_shader["uEmissiveColor"], 1, &r_cb[is].mtl.emission[0]);
-				glUniform1f(phong_shader["uRefractionIndex"],  r_cb[is].mtl.ior);
-				glUniform1f(phong_shader["uShininess"], r_cb[is].mtl.shininess);
+				glUniform3fv(texture_shader["uDiffuseColor"],1,&r_cb[is].mtl.diffuse[0]);
+				//glUniform3fv(texture_shader["uSpecularColor"], 1, &r_cb[is].mtl.specular[0]);
+				//glUniform3fv(texture_shader["uAmbientColor"], 1, &r_cb[is].mtl.ambient[0]);
+				//glUniform3fv(texture_shader["uEmissiveColor"], 1, &r_cb[is].mtl.emission[0]);
+				//glUniform1f(texture_shader["uRefractionIndex"],  r_cb[is].mtl.ior);
+				//glUniform1f(texture_shader["uShininess"], r_cb[is].mtl.shininess);
 
+				glBindTexture(GL_TEXTURE_2D, r_cb[is].mtl.diffuse_texture.id);
 				glDrawElements(r_cb[is].inds[0].elem_type, r_cb[is].inds[0].count, GL_UNSIGNED_INT, 0);
 			}
 			stack.pop();
@@ -356,7 +355,7 @@ int main(void)
 		}
 		
 		stack.pop();
-		 
+
 		r_line.bind();
 		glUseProgram(flat_shader.pr);
 		stack.push();

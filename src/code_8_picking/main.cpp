@@ -128,7 +128,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 		if (mods&GLFW_MOD_CONTROL) {
 			// from viewport to world space
 			float depthvalue;
-			glReadPixels(xpos, 800 - ypos, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depthvalue);
+			glReadPixels((int)xpos, 800 - (int)ypos, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depthvalue);
 			glm::vec4 ndc = glm::vec4(-1.f + xpos / 1000.f * 2, -1.f + (800 - ypos) / 800.f * 2.f, -1.f + depthvalue*2.f, 1.f);
 			glm::vec4 hit1 = glm::inverse(proj*view)*ndc;
 			hit1 /= hit1.w;
@@ -160,7 +160,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 /* callback function called when a mouse wheel is rotated */
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-	scaling_factor *= (yoffset>0) ? 1.1 : 0.97;
+	scaling_factor *= (yoffset>0) ? 1.1f : 0.97f;
 	scaling_matrix = glm::scale(glm::mat4(1.f), glm::vec3(scaling_factor, scaling_factor, scaling_factor));
 }
 
@@ -315,7 +315,7 @@ int main(void)
 
 		glUniformMatrix4fv(basic_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 		
-		glUniform3f(basic_shader["uColor"], 0.8,0.8,0.8);
+		glUniform3f(basic_shader["uColor"], 0.8f,0.8f,0.8f);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
 		glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
 		

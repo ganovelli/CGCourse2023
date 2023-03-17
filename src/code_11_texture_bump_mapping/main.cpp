@@ -17,10 +17,6 @@
 #include "..\common\trackball.h"
 
 
-
-#define STB_IMAGE_IMPLEMENTATION
-//#include <stb_image.h>
-
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "..\common\obj_loader.h"
 
@@ -36,7 +32,10 @@ and set the path properly.
 /* light direction in world space*/
 glm::vec4 Ldir;
 
+/* trackballs for controlloing the scene (0) or the light direction (1) */
 trackball tb[2];
+
+/* which trackball is currently used */
 int curr_tb;
 
 /* projection matrix*/
@@ -47,7 +46,7 @@ glm::mat4 view ;
 
 
 /* object that will be rendered in this scene*/
-renderable r_cube,r_sphere,r_frame, r_plane,r_line;
+renderable r_frame, r_plane,r_line,r_torus;
 
 /* program shaders used */
 shader texture_shader,flat_shader;
@@ -92,6 +91,60 @@ void print_info() {
 	std::cout << "press any key to switch between world and light control\n";
 }
 
+texture diffuse_map, displacement_map, normal_map;
+
+static int selected = 0;
+char diffuse_map_name[65536] = { "../../src/code_11_texture_bump_mapping/textures/brick_wall2-diff-512.png" };
+char displacement_map_name[65536] = { "../../src/code_11_texture_bump_mapping/textures/brick_wall2-diff-512.png" };
+char normal_map_name[65536] = { "../../src/code_11_texture_bump_mapping/textures/brick_wall2-nor-512.png" };
+
+void load_textures() {
+	diffuse_map.load(std::string(diffuse_map_name),0);
+	displacement_map.load(std::string(displacement_map_name),1);
+	normal_map.load(std::string(normal_map_name),2);
+}
+
+int selected_mesh = 0;
+
+void gui_setup() {
+	ImGui::BeginMainMenuBar();
+	if (ImGui::BeginMenu("Model")) {
+		if (ImGui::Selectable("plane", selected_mesh == 0)) selected_mesh = 0;
+		if (ImGui::Selectable("torus", selected_mesh == 1)) selected_mesh = 1;
+
+		ImGui::EndMenu();
+	}
+
+	if (ImGui::BeginMenu("Texture mode"))
+	{
+		if (ImGui::BeginMenu("Choose Images")) {
+			ImGui::Text("Set "); ImGui::SameLine(); ImGui::InputText("as diffuse_map", diffuse_map_name, 65536);
+			ImGui::Text("Set "); ImGui::SameLine(); ImGui::InputText("as displacement map", displacement_map_name, 65536);
+			ImGui::Text("Set "); ImGui::SameLine(); ImGui::InputText("as normal map", normal_map_name, 65536);
+
+			if (ImGui::Button("Set thes images as textures")) {
+				load_textures();
+			}
+			ImGui::EndMenu();
+		}
+
+		if (ImGui::Selectable("Show texture coordinates", selected == 0)) selected = 0;
+		if (ImGui::Selectable("Flat", selected == 1)) selected = 1;
+		if (ImGui::Selectable("MipMap Levels", selected == 2)) selected = 2;
+		if (ImGui::Selectable("Bump Mapping", selected == 3)) selected = 3;
+		if (ImGui::Selectable("Normal Mapping", selected == 4)) selected = 4;
+		if (ImGui::Selectable("Parallax Mapping", selected == 5)) selected = 5;
+		ImGui::EndMenu();
+	}
+	if (ImGui::BeginMenu("Trackball")) {
+		if (ImGui::Selectable("control scene", curr_tb == 0)) curr_tb = 0;
+		if (ImGui::Selectable("control ligth", curr_tb == 1)) curr_tb = 1;
+
+		ImGui::EndMenu();
+	}
+
+	ImGui::EndMainMenuBar();
+}
 int main(void)
 {
 	GLFWwindow* window;
@@ -130,20 +183,23 @@ int main(void)
 
 
 	/* load the shaders */
-	std::string shaders_path = "../../src/code_11_textures/shaders/";
+	std::string shaders_path = "../../src/code_11_texture_bump_mapping/shaders/";
 	texture_shader.create_program((shaders_path+"texture.vert").c_str(), (shaders_path+"texture.frag").c_str());
 	texture_shader.bind("uP");
 	texture_shader.bind("uV");
 	texture_shader.bind("uT");
-	texture_shader.bind("uShadingMode");
+	texture_shader.bind("uLdir");
+	texture_shader.bind("uRenderMode");
 	texture_shader.bind("uDiffuseColor");
 	texture_shader.bind("uTextureImage");
+	texture_shader.bind("uBumpmapImage");
+	texture_shader.bind("uNormalmapImage");
 
 	check_shader(texture_shader.vs);
 	check_shader(texture_shader.fs);
 	validate_shader_program(texture_shader.pr);
 
-	flat_shader.create_program((shaders_path + "texture.vert").c_str(), (shaders_path + "flat.frag").c_str());
+	flat_shader.create_program((shaders_path + "flat.vert").c_str(), (shaders_path + "flat.frag").c_str());
 	flat_shader.bind("uP");
 	flat_shader.bind("uV");
 	flat_shader.bind("uT");
@@ -164,25 +220,20 @@ int main(void)
 	/* create a  long line*/
 	r_line = shape_maker::line(100.f);
 
-	/* create a  sphere   centered at the origin with radius 1*/
-	r_sphere = shape_maker::sphere();
-
 	/* create 3 lines showing the reference frame*/
 	r_frame = shape_maker::frame(4.0);
 	
-	/* crete a rectangle*/
+	/* create a rectangle*/
 	shape s_plane;
 	shape_maker::rectangle(s_plane, 1, 1);
-	s_plane.compute_edge_indices_from_indices();
+	s_plane.compute_tangent_space();
 	s_plane.to_renderable(r_plane);
 
-	/* load from file */
-//	std::string models_path = "../../src/code_11_textures/models/boot";
-//	_chdir(models_path.c_str());
-
-//	std::vector<renderable> r_cb;
-//	load_obj(r_cb, "sh_catWorkBoot.obj");
- 	//load_obj(r_cb, "sphere.obj");
+	/* create a torus */
+	shape  s_torus;
+	shape_maker::torus(s_torus, 0.5, 2.0, 50, 50);
+	s_torus.compute_tangent_space();
+	s_torus.to_renderable(r_torus);
 
 	/* initial light direction */
 	Ldir = glm::vec4(0.0, 1.0, 0.0, 0.0);
@@ -190,23 +241,23 @@ int main(void)
 	/* Transformation to setup the point of view on the scene */
 	proj = glm::frustum(-1.f, 1.f, -0.8f, 0.8f, 2.f, 20.f);
 	view = glm::lookAt(glm::vec3(0, 6, 8.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
-	
 
 	glUseProgram(texture_shader.pr);
 	glUniformMatrix4fv(texture_shader["uP"], 1, GL_FALSE, &proj[0][0]);
 	glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &view[0][0]);
 	glUseProgram(0);
+	check_gl_errors(__LINE__, __FILE__, true);
+
 
 	glUseProgram(flat_shader.pr);
 	glUniformMatrix4fv(flat_shader["uP"], 1, GL_FALSE, &proj[0][0]);
 	glUniformMatrix4fv(flat_shader["uV"], 1, GL_FALSE, &view[0][0]);
-	glUniform4f(flat_shader["uColor"], 1.0, 1.0, 1.0,1.f);
+	glUniform3f(flat_shader["uColor"], 1.0, 1.0, 1.0);
 	glUseProgram(0);
 	glEnable(GL_DEPTH_TEST);
+	check_gl_errors(__LINE__, __FILE__, true);
 
-	system("CLS");
 	print_info();
-
 
 	matrix_stack stack;
 
@@ -218,31 +269,9 @@ int main(void)
 	/* define the viewport  */
 	glViewport(0, 0, 1000, 800);
 
-	/* avoid rendering back faces */
-	// uncomment to see the plane disappear when rotating it
-	// glEnable(GL_CULL_FACE);
-	static int selected = 0;
-
-
-	unsigned char * data;
-	int x_size, y_size;
-	int n_components;
-	GLuint id;
-//	data = stbi_load("../../src/code_11_textures/textures/brick_wall2-diff-512.png", &x_size, &y_size, &n_components, 0);
-	data = stbi_load("../../src/code_11_textures/textures/pattern.png", &x_size, &y_size, &n_components, 0);
-
-	glActiveTexture(GL_TEXTURE0);
-	glGenTextures(1, &id);
-	glBindTexture(GL_TEXTURE_2D, id);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x_size, y_size, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glGenerateMipmap(GL_TEXTURE_2D);
+	load_textures();
 
 	/* Loop until the user closes the window */
-	check_gl_errors(__LINE__, __FILE__);
 	while (!glfwWindowShouldClose(window))
 	{
 		/* Render here */
@@ -252,18 +281,7 @@ int main(void)
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
-
-		ImGui::Begin("Render Mode");
-		if (ImGui::Selectable("none", selected == 0)) selected = 0;
-		if (ImGui::Selectable("Flat", selected == 1)) selected = 1;
-		if (ImGui::Selectable("MipMap Levels", selected == 2)) selected = 2;
-		ImGui::End();
-
-
-		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-		check_gl_errors(__LINE__, __FILE__);
+		gui_setup();
 
 		/* light direction transformed by the trackball tb[1]*/
 		glm::vec4 curr_Ldir = tb[1].matrix()*Ldir;
@@ -271,52 +289,61 @@ int main(void)
 		stack.push();
 		stack.mult(tb[0].matrix());
 
-		r_plane.bind();
 		stack.push();
-		//step 2: render the triangles
+
 		glUseProgram(texture_shader.pr);
 
-		check_gl_errors(__LINE__, __FILE__);
-
 		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		glUniform1i(texture_shader["uShadingMode"], selected);
+		glUniform4fv(texture_shader["uLdir"], 1, &curr_Ldir[0]);
+		glUniform1i(texture_shader["uRenderMode"], selected);
 		glUniform3f(texture_shader["uDiffuseColor"], 0.8f,0.8f,0.8f);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
-		glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
+		glUniform1i(texture_shader["uTextureImage"], 0);
+		glUniform1i(texture_shader["uBumpmapImage"], 1);
+		glUniform1i(texture_shader["uNormalmapImage"], 2);
+
+		switch (selected_mesh) {
+			case 0:	r_plane.bind(); 
+					glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
+					glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0); break;
+			case 1:	r_torus.bind();
+					glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
+					glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
+				break;
+			}
 		stack.pop();
-		//  end flat-wire rendering of the plane
 		
 		// render the reference frame
-		glUseProgram(texture_shader.pr);
-		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		// a negative x component is used to tell the shader to use the vertex color as is (that is, no lighting is computed)
-		glUniform3f(texture_shader["uDiffuseColor"], -1.0, 0.0, 1.0); 
+		glUseProgram(flat_shader.pr);
+		glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glUniform3f(flat_shader["uColor"], -1.0, 1.0, 1.0);
+
 		r_frame.bind();
 		glDrawArrays(GL_LINES, 0, 6);
 		glUseProgram(0);
 
-		glUseProgram(texture_shader.pr);
-		glUniform1i(texture_shader["uTextureImage"], 0);
-		glUniform1i(texture_shader["uShadingMode"], selected);
-
+		check_gl_errors( __LINE__,__FILE__,true);
 		stack.pop();
 
-		r_line.bind();
-		glUseProgram(flat_shader.pr);
+		// render the light direction
 		stack.push();
 		stack.mult(tb[1].matrix());
 		 
+		glUseProgram(flat_shader.pr);
 		glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		 
-		glUniform4f(flat_shader["uColor"], 1.0,1.0,1.0,1.0);
-		 
+		glUniform3f(flat_shader["uColor"], 1.0,1.0,1.0);
+		r_line.bind();
 		glDrawArrays(GL_LINES, 0, 2);
-		 
-		stack.pop();
 		glUseProgram(0);
 
+		stack.pop();
+
+
 		check_gl_errors(__LINE__, __FILE__);
-		
+	
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+
 		/* Swap front and back buffers */
 		glfwSwapBuffers(window);
 

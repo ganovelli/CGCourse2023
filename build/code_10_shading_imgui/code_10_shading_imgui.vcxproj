@@ -19,9 +19,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{729D59DE-BA86-40BD-8F4E-35BBBC9338A2}</ProjectGuid>
+    <ProjectGuid>{1547C4C3-A362-4148-B37E-D6C6D6F07F7A}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>code_3_box2d</RootNamespace>
+    <RootNamespace>code_10_shading_imgui</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -88,7 +88,6 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <SDLCheck>true</SDLCheck>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -102,8 +101,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;GLEW_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\3dparty\glfw\include;..\..\3dparty\glew\include;..\..\3dparty\glm\include;..\..\3dparty\stb_image;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\3dparty\glfw\include;..\..\3dparty\glew\include;..\..\3dparty\glm\include;..\..\3dparty\imgui;..\..\3dparty\tinyobjectloader;..\..\3dparty\stb_image;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -121,7 +119,6 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <SDLCheck>true</SDLCheck>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -139,7 +136,6 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <SDLCheck>true</SDLCheck>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -149,7 +145,30 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\code_3_box2d\main.cpp" />
+    <ClCompile Include="..\..\3dparty\imgui\backends\imgui_impl_glfw.cpp" />
+    <ClCompile Include="..\..\3dparty\imgui\backends\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="..\..\3dparty\imgui\imgui.cpp" />
+    <ClCompile Include="..\..\3dparty\imgui\imgui_draw.cpp" />
+    <ClCompile Include="..\..\3dparty\imgui\imgui_tables.cpp" />
+    <ClCompile Include="..\..\3dparty\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\..\src\code_10_shading_imgui\main.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\code_10_shading_imgui\shaders\phong.frag" />
+    <None Include="..\..\src\code_10_shading_imgui\shaders\phong.vert" />
+    <None Include="..\..\src\code_10_shading_imgui\shaders\flat.frag" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\common\debugging.h" />
+    <ClInclude Include="..\..\src\common\intersection.h" />
+    <ClInclude Include="..\..\src\common\matrix_stack.h" />
+    <ClInclude Include="..\..\src\common\obj_loader.h" />
+    <ClInclude Include="..\..\src\common\renderable.h" />
+    <ClInclude Include="..\..\src\common\shaders.h" />
+    <ClInclude Include="..\..\src\common\simple_shapes.h" />
+    <ClInclude Include="..\..\src\common\trackball.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

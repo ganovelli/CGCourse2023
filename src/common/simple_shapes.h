@@ -83,7 +83,6 @@ public:
 				n_star[indices[it*3+iv]]++;
 
 				glm::vec2 coords = compute_tangent_frame(t[iv], t[(iv + 1) % 3], t[(iv + 2) % 3]);
-				//std::cout << "coords " << coords[0] << " " << coords[1] << "\n";
 
 				glm::vec3 pos10 = (p[(iv + 1) % 3] - p[iv]);
 				glm::vec3 pos20 = (p[(iv + 2) % 3] - p[iv]);
@@ -102,11 +101,6 @@ public:
 			tangents[3 * iv]	 = tangent[0];
 			tangents[3 * iv + 1] = tangent[1];
 			tangents[3 * iv + 2] = tangent[2];
-
-			//std::cout << "tangent " << iv << "\n";
-			//std::cout << "x " << tangent[0] << "\n";
-			//std::cout << "y " << tangent[1] << "\n";
-			//std::cout << "z " << tangent[2] << "\n\n";
 		}
 
 		}
@@ -328,20 +322,6 @@ struct shape_maker {
 	}
 
 
-	static void rectangle(shape & s) {
-
-		s.positions.resize(3 * 4);
-		s.texcoords.resize(2 * 4);
-
-		s.positions = {-1,0,1,  1,0,1, 1,0,-1, -1,0,-1};
-		s.texcoords = { 0.0,0.0,1.0,0.0,1.0,1.0,0.0,1.0};
-		s.normals  =  { 0,1,0, 0,1,0, 0,1,0, 0,1,0 };
-
-		s.indices = { 0,1,2, 0,2,3 };
-		s.vn = 4;
-		s.fn = 2;
-	}
-
 	 static void rectangle(shape & s, unsigned int nX, unsigned int nY) {
 		
 		 s.positions.resize(3 * (nX + 1)*(nY + 1));
@@ -354,7 +334,7 @@ struct shape_maker {
 				 s.positions[3 * (j*(nX + 1) + i) + 2] =  -1.f + 2 * i / float(nX);
 
 				 s.texcoords[2 * (j*(nX + 1) + i) + 0] = ( -1.f + 2 * j / float(nY) /2.f+1.f);
-				 s.texcoords[2 * (j*(nX + 1) + i) + 1] = (-1.f + 2 * i / float(nX) / 2.f + 1.f);
+				 s.texcoords[2 * (j*(nX + 1) + i) + 1] = (float) ( 1.0-(-1.f + 2 * i / float(nX) / 2.f + 1.f));
 			 }
 		 for (unsigned int i = 0; i < s.positions.size() / 3; ++i) {
 			 s.normals.push_back(0.0);
