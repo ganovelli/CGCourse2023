@@ -6,6 +6,7 @@ in vec4 vProjTexCoord;
 in vec4 vSkyboxTexCoord;
 in vec3 vLdirVS;
 in vec3 vNormalVS;
+in vec3 vNormalWS;
 in vec3 vLdirTS;
 in vec3 vVdirTS;
 
@@ -16,6 +17,7 @@ uniform sampler2D uTextureImage;
 uniform sampler2D uBumpmapImage;
 uniform sampler2D uNormalmapImage;
 uniform samplerCube uSkybox;
+uniform samplerCube uReflectionMap;
 
 uniform mat4 uV;
 uniform mat4 uT;
@@ -47,5 +49,18 @@ void main(void)
 	if(uRenderMode==2){ 
 		color = texture(uSkybox,normalize(vSkyboxTexCoord.xyz)); 
 		//color = vec4(normalize(vSkyboxTexCoord.xyz)*0.5+1.0,1.0);
-		}
+		}else
+	if(uRenderMode == 3){
+		vec3 r = reflect(normalize(vSkyboxTexCoord.xyz),normalize(vNormalWS));
+		color = texture(uSkybox,r); 
+	}else
+	if(uRenderMode == 4){
+		vec3 r = refract(normalize(vSkyboxTexCoord.xyz),normalize(vNormalWS),1.01);
+		color = texture(uSkybox,r); 
+	}
+	if(uRenderMode == 5){
+		vec3 r = reflect(normalize(vSkyboxTexCoord.xyz),normalize(vNormalWS));
+		//color = texture(uReflectionMap,normalize(vNormalWS)); 
+		color = texture(uReflectionMap,r); 
+	}
 } 

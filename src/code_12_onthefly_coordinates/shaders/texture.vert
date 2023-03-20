@@ -10,6 +10,7 @@ out vec4 vProjTexCoord;
 out vec4 vSkyboxTexCoord;
 out vec3 vLdirVS;
 out vec3 vNormalVS;
+out vec3 vNormalWS;
 out vec3 vLdirTS;
 out vec3 vVdirTS;
 
@@ -45,6 +46,7 @@ void main(void)
 
 	vLdirVS   = (uV*uLdir).xyz;
 	vNormalVS = normalize((uV*uT*vec4(aNormal,0.0)).xyz);
+	vNormalWS = normalize(( uT*vec4(aNormal,0.0)).xyz);
 
 	vTexCoord = aTexCoord*vec2(1.0,1.0);
     gl_Position = uP*uV*uT*vec4(aPosition, 1.0); 

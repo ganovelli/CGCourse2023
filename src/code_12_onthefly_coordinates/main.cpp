@@ -15,7 +15,7 @@
 #include "..\common\matrix_stack.h"
 #include "..\common\intersection.h"
 #include "..\common\trackball.h"
-
+#include "..\common\frame_buffer_object.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "..\common\obj_loader.h"
@@ -54,10 +54,14 @@ glm::mat4 proj;
 /* view matrix */
 glm::mat4 view ;
 
+/* matix stack*/
+matrix_stack stack;
+
+frame_buffer_object fbo;
 
 /* object that will be rendered in this scene*/
-renderable r_frame, r_plane,r_line,r_torus,r_cube;
-std::vector<renderable> r_projector;
+renderable r_frame, r_plane,r_line,r_torus,r_cube, r_sphere;
+//std::vector<renderable> r_projector;
 
 /* program shaders used */
 shader texture_shader,flat_shader;
@@ -73,10 +77,10 @@ static void cursor_position_callback(GLFWwindow* window, double xpos, double ypo
 		tb[curr_tb].mouse_move(proj, view, xpos, ypos);
 	else {
 		if (is_dragging) {
-			d_alpha += (xpos - start_xpos)/1000.f;
-			d_beta += (ypos - start_ypos)/800.f;
-			start_xpos = xpos;
-			start_ypos = ypos;
+			d_alpha += (float)(xpos - start_xpos)/1000.f;
+			d_beta += (float)(ypos - start_ypos)/800.f;
+			start_xpos = (float)xpos;
+			start_ypos = (float)ypos;
 			view_rot = glm::rotate(glm::rotate(glm::mat4(1.f), d_alpha, glm::vec3(0,1,0)), d_beta, glm::vec3(1,0,0));
 
 		}
@@ -93,8 +97,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 			tb[curr_tb].mouse_press(proj, view, xpos, ypos);
 		else {
 			is_dragging = true;
-			start_xpos = xpos;
-			start_ypos = ypos;
+			start_xpos = (float) xpos;
+			start_ypos = (float) ypos;
 		}
 	}
 	else
@@ -125,21 +129,18 @@ void print_info() {
 	std::cout << "press any key to switch between world and light control\n";
 }
 
-texture diffuse_map, displacement_map, normal_map,skybox;
+texture diffuse_map, displacement_map, normal_map,skybox,reflection_map;
 
 static int selected = 0;
-//char diffuse_map_name[65536] = { "../../src/code_11_texture_bump_mapping/textures/brick_wall2-diff-512.png" };
-//char displacement_map_name[65536] = { "../../src/code_11_texture_bump_mapping/textures/brick_wall2-diff-512.png" };
-//char normal_map_name[65536] = { "../../src/code_11_texture_bump_mapping/textures/brick_wall2-nor-512.png" };
 
 void load_textures() {
-	//diffuse_map.load(std::string(diffuse_map_name),0);
-	//displacement_map.load(std::string(displacement_map_name),1);
-	//normal_map.load(std::string(normal_map_name),2);
 	std::string path = "../../models/textures/desert_cubemap/";
 	skybox.load_cubemap(path + "posx.jpg", path + "negx.jpg", 
 						path + "posy.jpg", path + "negy.jpg",
 						path + "posz.jpg", path + "negz.jpg",1);
+
+	glActiveTexture(GL_TEXTURE2);
+	reflection_map.create_cubemap(2048, 2048,3);
 }
 
 int selected_mesh = 0;
@@ -155,26 +156,13 @@ void gui_setup() {
 
 	if (ImGui::BeginMenu("Texture mode"))
 	{
-	//	if (ImGui::BeginMenu("Choose Images")) {
-	//		ImGui::Text("Set "); ImGui::SameLine(); ImGui::InputText("as diffuse_map", diffuse_map_name, 65536);
-	//		ImGui::Text("Set "); ImGui::SameLine(); ImGui::InputText("as displacement map", displacement_map_name, 65536);
-	//		ImGui::Text("Set "); ImGui::SameLine(); ImGui::InputText("as normal map", normal_map_name, 65536);
-
-	//		if (ImGui::Button("Set thes images as textures")) {
-	//			load_textures();
-	//		}
-	//		ImGui::EndMenu();
-	//	}
-
 	 if (ImGui::Selectable("Show texture coordinates", selected == 0)) selected = 0;
 	 if (ImGui::Selectable("Projective Texturing", selected == 1)) selected = 1;
 	 if (ImGui::Selectable("Skybox", selected == 2)) selected = 2;
 	 if (ImGui::Selectable("Reflection", selected == 3)) selected = 3;
-
-	 //	if (ImGui::Selectable("Bump Mapping", selected == 3)) selected = 3;
-	//	if (ImGui::Selectable("Normal Mapping", selected == 4)) selected = 4;
-	//	if (ImGui::Selectable("Parallax Mapping", selected == 5)) selected = 5;
-	 	ImGui::EndMenu();
+	 if (ImGui::Selectable("Refraction", selected == 4)) selected = 4;
+	 if (ImGui::Selectable("Reflection Map", selected == 5)) selected = 5;
+	 ImGui::EndMenu();
 	}
 	if (ImGui::BeginMenu("Trackball")) {
 		if (ImGui::Selectable("control scene", curr_tb == 0)) curr_tb = 0;
@@ -186,6 +174,88 @@ void gui_setup() {
 
 	ImGui::EndMainMenuBar();
 }
+
+void draw_scene_no_target() {
+	r_cube.bind();
+	glUniform1i(texture_shader["uRenderMode"], 2);
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &glm::scale(glm::mat4(1.f), glm::vec3(40.0, 40.0, 40.0))[0][0]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.ind);
+	glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	glUniform1i(texture_shader["uRenderMode"], 0);
+	r_plane.bind();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
+	glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
+
+	stack.push();
+	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.5, 0.5, 0.0)));
+	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	r_torus.bind();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
+	glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
+	stack.pop();
+}
+
+void draw_scene_target_only() {
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	glUniform1i(texture_shader["uRenderMode"], 5);
+
+	stack.push();
+	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.5, 0.0)));
+	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.5, 0.5, 0.5)));
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	r_sphere.bind();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_sphere.ind);
+	glDrawElements(GL_TRIANGLES, r_sphere.in, GL_UNSIGNED_INT, 0);
+	stack.pop();
+}
+
+
+void draw_scene() {
+	/* draw the scene: begin  */
+	r_cube.bind();
+	glUniform1i(texture_shader["uRenderMode"], 2);
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &glm::scale(glm::mat4(1.f), glm::vec3(40.0, 40.0, 40.0))[0][0]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.ind);
+	glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	glUniform1i(texture_shader["uRenderMode"], selected);
+	r_plane.bind();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
+	glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
+
+	//stack.push();
+	//stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.2, 0.0)));
+	//stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
+	//glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	//r_torus.bind();
+	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
+	//glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
+	//stack.pop();
+
+	stack.push();
+	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.5, 0.0)));
+	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.5, 0.5, 0.5)));
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	r_sphere.bind();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_sphere.ind);
+	glDrawElements(GL_TRIANGLES, r_sphere.in, GL_UNSIGNED_INT, 0);
+	stack.pop();
+
+	stack.push();
+	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.5, 0.5, 0.0)));
+	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	r_torus.bind();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
+	glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
+	stack.pop();
+	/* draw the scene: end  */
+}
+
 int main(void)
 {
 	GLFWwindow* window;
@@ -238,6 +308,7 @@ int main(void)
 	texture_shader.bind("uBumpmapImage");
 	texture_shader.bind("uNormalmapImage");
 	texture_shader.bind("uSkybox");
+	texture_shader.bind("uReflectionMap");
 
 	check_shader(texture_shader.vs);
 	check_shader(texture_shader.fs);
@@ -259,7 +330,7 @@ int main(void)
 	glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
 	glUseProgram(0);
 
-	check_gl_errors(__LINE__, __FILE__);
+	fbo.create(2048, 2048);
 
 	/* create a  long line*/
 	r_line = shape_maker::line(100.f);
@@ -282,6 +353,8 @@ int main(void)
 	/* create a torus */
 	r_cube = shape_maker::cube();
 
+	/* create a sphere */
+	r_sphere = shape_maker::sphere();
 
 	/* load models */
 //	std::string models_path = "../../models/projector/";
@@ -320,7 +393,6 @@ int main(void)
 
 	print_info();
 
-	matrix_stack stack;
 
 	/* set the trackball position */
 	tb[0].set_center_radius(glm::vec3(0, 0, 0), 2.f);
@@ -345,7 +417,7 @@ int main(void)
 		ImGui::NewFrame();
 		gui_setup();
 
-
+		/* rotate the view accordingly to view_rot*/
 		view_frame = inverse(view);
 		glm::mat4 view_axis = view_frame;
 		view_axis[3] = glm::vec4(0, 0, 0, 1);
@@ -366,32 +438,49 @@ int main(void)
 		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 		glUniform4fv(texture_shader["uLdir"], 1, &curr_Ldir[0]);
 		glUniform1i(texture_shader["uRenderMode"], selected);
-		glUniform3f(texture_shader["uDiffuseColor"], 0.8f,0.8f,0.8f);
 		glUniform1i(texture_shader["uTextureImage"], 0);
-		glUniform1i(texture_shader["uBumpmapImage"], 1);
-		glUniform1i(texture_shader["uNormalmapImage"], 2);
 		glUniform1i(texture_shader["uSkybox"], 1);
+		glUniform1i(texture_shader["uReflectionMap"], 2);
+		
 
-		r_cube.bind();
-		glUniform1i(texture_shader["uRenderMode"], 2);
-		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &glm::scale(glm::mat4(1.f), glm::vec3(40.0, 40.0, 40.0))[0][0]);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.ind);
-		glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+		check_gl_errors(__LINE__, __FILE__, true);
+		/* draw the scene six times, one for each face of the cube  */
+		if(selected == 5)
+		{
+			glm::vec3 tar[6] = { glm::vec3(1.f,0,0),glm::vec3(-1.f,0.f,0),glm::vec3(0.f,1.f,0),glm::vec3(0.f,-1.f,0),glm::vec3(0.f,0,1),glm::vec3(0.f,0,-1.f) };
+			glm::vec3 up[6]  = { glm::vec3(0.0,-1,0),glm::vec3(0.0,-1.f,0),glm::vec3(0.0,0.f,1),glm::vec3(0.0,0.0,-1),glm::vec3(0.f,-1,0),glm::vec3(0.f,-1,0) };
 
-		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		glUniform1i(texture_shader["uRenderMode"], selected);
-		r_plane.bind();
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
-		glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0); 
+			glm::mat4 projsB, viewSB;
+			projsB = glm::perspective(3.14f/2.f, 1.f, 0.2f, 100.0f);
+			glUniformMatrix4fv(texture_shader["uP"], 1, GL_FALSE, &projsB[0][0]);
 
-		stack.push();
-		stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.2, 0.0)));
-		stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2,0.2,0.2))); 
-		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		r_torus.bind();
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
-		glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
-		stack.pop();
+			glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
+
+			for (unsigned int i = 0; i < 6; ++i) {
+				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, reflection_map.id, 0);
+				viewSB = glm::lookAt(glm::vec3(0, 0.0, 0)+glm::vec3(0,0.5,0.0), tar[i] + glm::vec3(0, 0.5, 0.0), up[i]);
+				glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &viewSB[0][0]);
+				glViewport(0, 0, 2048, 2048);
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+				draw_scene_no_target();
+			}
+			glBindFramebuffer(GL_FRAMEBUFFER,0);
+		}
+		/* --------------------------------------------------------*/
+ 
+		glViewport(0, 0, 1000, 800);
+
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+		glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &view_axis[0][0]);
+		glUniformMatrix4fv(texture_shader["uP"], 1, GL_FALSE, &proj[0][0]);
+
+		if (selected == 5) {
+			draw_scene_no_target();
+			draw_scene_target_only();
+		}else
+			draw_scene();
+
 
 		stack.pop();
 
