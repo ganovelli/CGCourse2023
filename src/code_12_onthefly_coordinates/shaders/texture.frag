@@ -41,8 +41,8 @@ void main(void)
 	color = vec4(vTexCoord,0.0,1.0);
 	else
 	if(uRenderMode==1){ 
-		vec2 tc = ( (vProjTexCoord/vProjTexCoord.w).xy *0.5+1.0) ;
-		vec4 c = texture2D(uTextureImage,tc); 
+		vec2 tc = ( (vProjTexCoord/vProjTexCoord.w).xy *0.5+0.5) ;
+		vec4 c = texture2D(uTextureImage,tc.xy); 
 		vec3 cc =  vec3(max(0.0,dot(normalize(vLdirVS),normalize(vNormalVS)))) + c.xyz*c.w; 
 		color = vec4(cc,1.0);
 		}else
@@ -55,12 +55,11 @@ void main(void)
 		color = texture(uSkybox,r); 
 	}else
 	if(uRenderMode == 4){
-		vec3 r = refract(normalize(vSkyboxTexCoord.xyz),normalize(vNormalWS),1.01);
+		vec3 r = refract(normalize(vSkyboxTexCoord.xyz),normalize(vNormalWS),1.02);
 		color = texture(uSkybox,r); 
 	}
 	if(uRenderMode == 5){
 		vec3 r = reflect(normalize(vSkyboxTexCoord.xyz),normalize(vNormalWS));
-		//color = texture(uReflectionMap,normalize(vNormalWS)); 
-		color = texture(uReflectionMap,r); 
+		color = texture(uReflectionMap,r);
 	}
 } 

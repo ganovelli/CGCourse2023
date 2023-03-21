@@ -144,7 +144,7 @@ void load_textures() {
 }
 
 int selected_mesh = 0;
-
+bool _transf=false;
 void gui_setup() {
 	ImGui::BeginMainMenuBar();
 	//if (ImGui::BeginMenu("Model")) {
@@ -171,10 +171,15 @@ void gui_setup() {
 
 		ImGui::EndMenu();
 	}
+	if (ImGui::BeginMenu("Debug")) {
+		ImGui::Checkbox("transf", &_transf);
+		ImGui::EndMenu();
+	}
 
 	ImGui::EndMainMenuBar();
 }
 
+/* used when rendering offscreen to create the environment map on-the-fly*/
 void draw_scene_no_target() {
 	r_cube.bind();
 	glUniform1i(texture_shader["uRenderMode"], 2);
@@ -183,13 +188,13 @@ void draw_scene_no_target() {
 	glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
 
 	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	glUniform1i(texture_shader["uRenderMode"], 0);
+	glUniform1i(texture_shader["uRenderMode"], 1);
 	r_plane.bind();
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
 	glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
 
 	stack.push();
-	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.5, 0.5, 0.0)));
+	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.0, 0.5, 0.0)));
 	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
 	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 	r_torus.bind();
@@ -199,7 +204,6 @@ void draw_scene_no_target() {
 }
 
 void draw_scene_target_only() {
-	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 	glUniform1i(texture_shader["uRenderMode"], 5);
 
 	stack.push();
@@ -214,15 +218,15 @@ void draw_scene_target_only() {
 
 
 void draw_scene() {
-	/* draw the scene: begin  */
-	r_cube.bind();
-	glUniform1i(texture_shader["uRenderMode"], 2);
-	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &glm::scale(glm::mat4(1.f), glm::vec3(40.0, 40.0, 40.0))[0][0]);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.ind);
-	glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
-
+	if (selected > 1) {
+		r_cube.bind();
+		glUniform1i(texture_shader["uRenderMode"], 2);
+		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &glm::scale(glm::mat4(1.f), glm::vec3(40.0, 40.0, 40.0))[0][0]);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.ind);
+		glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+	}
 	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	glUniform1i(texture_shader["uRenderMode"], selected);
+	glUniform1i(texture_shader["uRenderMode"], (selected==2)?1:selected);
 	r_plane.bind();
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
 	glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
@@ -246,7 +250,7 @@ void draw_scene() {
 	stack.pop();
 
 	stack.push();
-	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.5, 0.5, 0.0)));
+	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.0, 0.5, 0.0)));
 	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
 	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 	r_torus.bind();
@@ -367,18 +371,18 @@ int main(void)
 	Lproj.proj = glm::frustum(-0.1f,0.1f, -0.05f, 0.05f, 2.f, 40.f);
 	Lproj.view = glm::lookAt(glm::vec3(4, 4, 6.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	Lproj.tex.load("../../models/textures/batman.png",0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+ 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+ 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
 	/* Transformation to setup the point of view on the scene */
 	proj = glm::frustum(-1.f, 1.f, -0.8f, 0.8f, 2.f,100.f);
-	view = glm::lookAt(glm::vec3(0, 6, 8.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+	view = glm::lookAt(glm::vec3(0, 3, 4.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 
 	glUseProgram(texture_shader.pr);
 	glUniformMatrix4fv(texture_shader["uP"], 1, GL_FALSE, &proj[0][0]);
+	glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &view[0][0]);
 	glUniformMatrix4fv(texture_shader["uLPView"], 1, GL_FALSE, &Lproj.view[0][0]);
 	glUniformMatrix4fv(texture_shader["uLPProj"], 1, GL_FALSE, &Lproj.proj[0][0]);
-	glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &view[0][0]);
 	glUseProgram(0);
 	check_gl_errors(__LINE__, __FILE__, true);
 
@@ -404,7 +408,7 @@ int main(void)
 	glViewport(0, 0, 1000, 800);
 
 	load_textures();
-
+	
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
@@ -419,11 +423,11 @@ int main(void)
 
 		/* rotate the view accordingly to view_rot*/
 		view_frame = inverse(view);
-		glm::mat4 view_axis = view_frame;
-		view_axis[3] = glm::vec4(0, 0, 0, 1);
-		view_axis = ::view_rot*view_axis;
-		view_axis[3] = view_frame[3];
-		view_axis = inverse(view_axis);
+		glm::mat4 curr_view = view_frame;
+		curr_view[3] = glm::vec4(0, 0, 0, 1);
+		curr_view = ::view_rot*curr_view;
+		curr_view[3] = view_frame[3];
+		curr_view = inverse(curr_view);
 
 
 		/* light direction transformed by the trackball tb[1]*/
@@ -434,7 +438,7 @@ int main(void)
 
 		stack.push();
 		glUseProgram(texture_shader.pr);
-		glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &view_axis[0][0]);
+		glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
 		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 		glUniform4fv(texture_shader["uLdir"], 1, &curr_Ldir[0]);
 		glUniform1i(texture_shader["uRenderMode"], selected);
@@ -445,26 +449,38 @@ int main(void)
 
 		check_gl_errors(__LINE__, __FILE__, true);
 		/* draw the scene six times, one for each face of the cube  */
-		if(selected == 5)
+		
+		if( selected == 5 )
 		{
+//			glActiveTexture(GL_TEXTURE1);
+//			glBindTexture(GL_TEXTURE_CUBE_MAP, skybox.id);
+
+			
 			glm::vec3 tar[6] = { glm::vec3(1.f,0,0),glm::vec3(-1.f,0.f,0),glm::vec3(0.f,1.f,0),glm::vec3(0.f,-1.f,0),glm::vec3(0.f,0,1),glm::vec3(0.f,0,-1.f) };
 			glm::vec3 up[6]  = { glm::vec3(0.0,-1,0),glm::vec3(0.0,-1.f,0),glm::vec3(0.0,0.f,1),glm::vec3(0.0,0.0,-1),glm::vec3(0.f,-1,0),glm::vec3(0.f,-1,0) };
 
 			glm::mat4 projsB, viewSB;
-			projsB = glm::perspective(3.14f/2.f, 1.f, 0.2f, 100.0f);
+			projsB = glm::perspective(3.14f/2.f, 1.f, 0.1f, 100.0f);
 			glUniformMatrix4fv(texture_shader["uP"], 1, GL_FALSE, &projsB[0][0]);
 
 			glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
 
+			glm::vec3 eye = glm::vec3(0, 0.5, 0.0);
+			if (_transf)
+				eye =  tb[0].matrix()*glm::vec4(eye,1.0);
+
 			for (unsigned int i = 0; i < 6; ++i) {
 				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, reflection_map.id, 0);
-				viewSB = glm::lookAt(glm::vec3(0, 0.0, 0)+glm::vec3(0,0.5,0.0), tar[i] + glm::vec3(0, 0.5, 0.0), up[i]);
+			 	viewSB = glm::lookAt(eye, eye + tar[i], up[i]);
 				glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &viewSB[0][0]);
 				glViewport(0, 0, 2048, 2048);
 				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				draw_scene_no_target();
 			}
 			glBindFramebuffer(GL_FRAMEBUFFER,0);
+
+//			glActiveTexture(GL_TEXTURE1);
+	//		glBindTexture(GL_TEXTURE_CUBE_MAP, reflection_map.id);
 		}
 		/* --------------------------------------------------------*/
  
@@ -472,7 +488,7 @@ int main(void)
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-		glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &view_axis[0][0]);
+		glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
 		glUniformMatrix4fv(texture_shader["uP"], 1, GL_FALSE, &proj[0][0]);
 
 		if (selected == 5) {
@@ -486,7 +502,7 @@ int main(void)
 
 		// render the reference frame
 		glUseProgram(flat_shader.pr);
-		glUniformMatrix4fv(flat_shader["uV"], 1, GL_FALSE, &view_axis[0][0]);
+		glUniformMatrix4fv(flat_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
 		glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 		glUniform3f(flat_shader["uColor"], -1.0, 1.0, 1.0);
 

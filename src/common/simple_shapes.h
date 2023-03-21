@@ -593,12 +593,13 @@ struct shape_maker {
 		 ////////////////////////////////////////////////////////////
 		 s.texcoords.resize(2 * ((stacks + 1)*(slices + 1)));
 		 s.positions.resize(3 * ((stacks + 1)*(slices + 1)));
+		 s.normals.resize(3 * ((stacks + 1)*(slices + 1)));
 
 		 float step_slices = (float)6.283185307179586476925286766559 / slices;
 		 float step_stacks = (float)6.283185307179586476925286766559 / stacks;
 
 		 glm::mat4 R(1.0);
-		 glm::vec4 p(0.0);
+		 glm::vec4 p(0.0),nm(0.0);
 		 for (unsigned int i = 0; i < stacks + 1; ++i) {
 			 R=  glm::rotate(glm::mat4(1.f), step_stacks*i, glm::vec3(0, 1, 0));
 
@@ -606,6 +607,7 @@ struct shape_maker {
 				 float x = in_radius*cos(j*step_slices);
 				 float y = in_radius*sin(j*step_slices);
 				 float z = 0.0;
+				 float nx = x;
 
 				 x += out_radius;
 
@@ -615,6 +617,11 @@ struct shape_maker {
 				 s.positions[3 * pos(i, j, stacks) + 1] = p[1];
 				 s.positions[3 * pos(i, j, stacks) + 2] = p[2];
 				
+				 nm = R*glm::vec4(nx, y, z, 0.0);
+				 nm = normalize(nm);
+				 s.normals[3 * pos(i, j, stacks)] = nm[0];
+				 s.normals[3 * pos(i, j, stacks) + 1] = nm[1];
+				 s.normals[3 * pos(i, j, stacks) + 2] = nm[2];
 
 				 s.texcoords[2 * pos(i, j, stacks)] = i / (1.f*stacks);
 				 s.texcoords[2 * pos(i, j, stacks) + 1] = j / (1.f*slices);

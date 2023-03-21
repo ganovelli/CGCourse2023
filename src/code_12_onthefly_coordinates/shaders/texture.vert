@@ -11,8 +11,6 @@ out vec4 vSkyboxTexCoord;
 out vec3 vLdirVS;
 out vec3 vNormalVS;
 out vec3 vNormalWS;
-out vec3 vLdirTS;
-out vec3 vVdirTS;
 
 uniform mat4 uP;
 uniform mat4 uV;
@@ -27,22 +25,9 @@ uniform int uRenderMode;
 
 void main(void) 
 { 
-    // computing the tangent frame
-    vec3 tangent = normalize(aTangent);
-    vec3 bitangent = normalize(cross(aNormal,tangent));
-	
-	mat3 TF;
-
-	TF[0] = tangent;
-	TF[1] = bitangent;
-	TF[2] = normalize(aNormal);
-	TF = transpose(TF);
-
-	vLdirTS   =    TF * (inverse(uT)*uLdir).xyz;
-
 	vec3 ViewVS  =  (vec4(0.0,0.0,0.0,1.0) -uV*uT*vec4(aPosition, 1.0)).xyz; 
 
-	vVdirTS	  =    TF * (inverse(uT)*inverse(uV)* vec4(ViewVS,0.0)).xyz;
+	
 
 	vLdirVS   = (uV*uLdir).xyz;
 	vNormalVS = normalize((uV*uT*vec4(aNormal,0.0)).xyz);

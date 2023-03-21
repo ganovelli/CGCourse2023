@@ -9,6 +9,37 @@
 #include <iostream>
 
 
+static void create_simple_shapes(std::vector<tinyobj::shape_t> & shapes, int vn,std::vector< std::vector<bool> >  &keep) {
+	
+	keep.resize(shapes.size());
+	for (size_t i = 0; i < keep.size(); ++i)
+		keep[i].resize(vn,false);
+
+	for (unsigned int is = 0; is < shapes.size(); ++is) {
+		std::vector<int> remap;
+		remap.resize(vn, 0);
+		
+		for (size_t f = 0; f < shapes[is].mesh.indices.size(); f++) {
+			int curr_vi = shapes[is].mesh.indices[f].vertex_index;
+			keep[is][curr_vi] = true;
+		}
+
+		int delta = 0;
+		for (size_t i = 0; i < remap.size(); ++i) {
+			if (!keep[is][i])
+				delta++;
+			else
+				remap[i] = delta;
+		}
+
+		for (size_t f = 0; f < shapes[is].mesh.indices.size(); f++) {
+			int & curr_vi = shapes[is].mesh.indices[f].vertex_index;
+			curr_vi -= remap[curr_vi];
+		}
+
+	}
+	
+}
 
 struct v_nor_tex : public std::pair<int,int>{
 	v_nor_tex() { first = second = -1; }
@@ -79,7 +110,7 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 						skip_to.push_back(-1);
 						pos_id.push_back(pos_id[id.vertex_index]); // make a new vertex with the same position..
 						id.vertex_index = (int)pos_id.size() - 1;
-						tn_id.push_back(v_nor_tex(id.normal_index, id.texcoord_index));		 // ..and the new normal		
+						tn_id.push_back(v_nor_tex(id.normal_index, id.texcoord_index));		 // ..and the new normal/tcoord		
 					}
 				}
 			}
@@ -142,6 +173,12 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 
 		} while (fi < shapes[is].mesh.material_ids.size());
 	}
+
+//	std::vector< std::vector< bool> > keep;
+//	create_simple_shapes(mshapes,v_pos.size(),keep);
+//  se si fa lo split bisogna creare gli array buffer per ogni shape
+//  Ogni array buffer è dato da quello originale da cui si cancellano i vertici !keep[][] 
+//  quando una shape è stata create possiamo calcolare il texture space
 
 	// resize the vector of renderable
 	rs.resize(mshapes.size());
