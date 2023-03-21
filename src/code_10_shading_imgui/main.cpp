@@ -195,11 +195,13 @@ int main(void)
 	s_plane.to_renderable(r_plane);
 
 	/* load from file */
-	std::string models_path = "../../src/code_10_shading_imgui/models/boot";
+	std::string models_path = "../../src/code_10_shading_imgui/models/Datsun_280Z";
 	_chdir(models_path.c_str());
 
 	std::vector<renderable> r_cb;
-	load_obj(r_cb, "sh_catWorkBoot.obj");
+	load_obj(r_cb, "datsun_280Z.obj");
+
+//	load_obj(r_cb, "sh_catWorkBoot.obj");
  	//load_obj(r_cb, "sphere.obj");
 
 	/* initial light direction */

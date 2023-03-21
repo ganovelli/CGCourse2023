@@ -61,7 +61,7 @@ public:
 		scaling_factor = 1.f;
 		scaling_matrix = glm::mat4(1.f);
 		rotation_matrix = glm::mat4(1.f);
-		is_trackball_dragged = false;
+		//is_trackball_dragged = false;
 	}
 	void set_center_radius(glm::vec3 c, float r) {
 		center = c;
