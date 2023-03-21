@@ -54,22 +54,27 @@ glm::mat4 proj;
 /* view matrix */
 glm::mat4 view ;
 
-/* matix stack*/
+/* matrix stack*/
 matrix_stack stack;
 
+/* a frame buffer object for the offline rendering*/
 frame_buffer_object fbo;
 
 /* object that will be rendered in this scene*/
 renderable r_frame, r_plane,r_line,r_torus,r_cube, r_sphere;
-//std::vector<renderable> r_projector;
 
 /* program shaders used */
 shader texture_shader,flat_shader;
 
+/* implementation of view controller */
+
+/* azimuthal and elevation angle*/
 float d_alpha, d_beta;
 float start_xpos, start_ypos;
 bool is_dragging;
 glm::mat4 view_rot,view_frame;
+
+
 /* callback function called when the mouse is moving */
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
@@ -124,12 +129,9 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 
 }
 void print_info() {
-
-	std::cout << "press left mouse button to control the trackball\n" ;
-	std::cout << "press any key to switch between world and light control\n";
 }
 
-texture diffuse_map, displacement_map, normal_map,skybox,reflection_map;
+texture skybox,reflection_map;
 
 static int selected = 0;
 
@@ -143,16 +145,8 @@ void load_textures() {
 	reflection_map.create_cubemap(2048, 2048,3);
 }
 
-int selected_mesh = 0;
-bool _transf=false;
 void gui_setup() {
 	ImGui::BeginMainMenuBar();
-	//if (ImGui::BeginMenu("Model")) {
-	//	if (ImGui::Selectable("plane", selected_mesh == 0)) selected_mesh = 0;
-	//	if (ImGui::Selectable("torus", selected_mesh == 1)) selected_mesh = 1;
-
-	//	ImGui::EndMenu();
-	//}
 
 	if (ImGui::BeginMenu("Texture mode"))
 	{
@@ -171,41 +165,44 @@ void gui_setup() {
 
 		ImGui::EndMenu();
 	}
-	if (ImGui::BeginMenu("Debug")) {
-		ImGui::Checkbox("transf", &_transf);
-		ImGui::EndMenu();
-	}
-
 	ImGui::EndMainMenuBar();
 }
 
-/* used when rendering offscreen to create the environment map on-the-fly*/
-void draw_scene_no_target() {
+void draw_torus() {
+	stack.push();
+	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.0, 0.5, 0.0)));
+	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	r_torus.bind();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
+	glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
+	stack.pop();
+}
+
+void draw_plane() {
+	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	r_plane.bind();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
+	glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
+}
+
+void draw_large_cube() {
 	r_cube.bind();
 	glUniform1i(texture_shader["uRenderMode"], 2);
 	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &glm::scale(glm::mat4(1.f), glm::vec3(40.0, 40.0, 40.0))[0][0]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.ind);
 	glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
-
-	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	glUniform1i(texture_shader["uRenderMode"], 1);
-	r_plane.bind();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
-	glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
-
-	stack.push();
-	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.0, 0.5, 0.0)));
-	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
-	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	r_torus.bind();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
-	glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
-	stack.pop();
 }
 
-void draw_scene_target_only() {
-	glUniform1i(texture_shader["uRenderMode"], 5);
+/* used when rendering offscreen to create the environment map on-the-fly*/
+void draw_scene_no_target() {
+	draw_large_cube();
+	glUniform1i(texture_shader["uRenderMode"], 1);
+	draw_plane();
+	draw_torus();
+}
 
+void draw_sphere() {
 	stack.push();
 	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.5, 0.0)));
 	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.5, 0.5, 0.5)));
@@ -214,50 +211,22 @@ void draw_scene_target_only() {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_sphere.ind);
 	glDrawElements(GL_TRIANGLES, r_sphere.in, GL_UNSIGNED_INT, 0);
 	stack.pop();
+}
+void draw_scene_target_only() {
+	glUniform1i(texture_shader["uRenderMode"], 5);
+	draw_sphere();
 }
 
 
 void draw_scene() {
 	if (selected > 1) {
-		r_cube.bind();
-		glUniform1i(texture_shader["uRenderMode"], 2);
-		glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &glm::scale(glm::mat4(1.f), glm::vec3(40.0, 40.0, 40.0))[0][0]);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.ind);
-		glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+		draw_large_cube();
 	}
-	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	glUniform1i(texture_shader["uRenderMode"], (selected==2)?1:selected);
-	r_plane.bind();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
-	glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
 
-	//stack.push();
-	//stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.2, 0.0)));
-	//stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
-	//glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	//r_torus.bind();
-	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
-	//glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
-	//stack.pop();
-
-	stack.push();
-	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.5, 0.0)));
-	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.5, 0.5, 0.5)));
-	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	r_sphere.bind();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_sphere.ind);
-	glDrawElements(GL_TRIANGLES, r_sphere.in, GL_UNSIGNED_INT, 0);
-	stack.pop();
-
-	stack.push();
-	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.0, 0.5, 0.0)));
-	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
-	glUniformMatrix4fv(texture_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	r_torus.bind();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
-	glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
-	stack.pop();
-	/* draw the scene: end  */
+	glUniform1i(texture_shader["uRenderMode"], (selected == 2) ? 1 : selected);
+	draw_plane();
+	draw_sphere();
+	draw_torus();
 }
 
 int main(void)
@@ -360,14 +329,10 @@ int main(void)
 	/* create a sphere */
 	r_sphere = shape_maker::sphere();
 
-	/* load models */
-//	std::string models_path = "../../models/projector/";
-//	_chdir(models_path.c_str());
-//	load_obj(r_projector,"projector.obj");
-
 	/* initial light direction */
 	Ldir = glm::vec4(0.0, 1.0, 0.0, 0.0);
 
+	/* light projection */
 	Lproj.proj = glm::frustum(-0.1f,0.1f, -0.05f, 0.05f, 2.f, 40.f);
 	Lproj.view = glm::lookAt(glm::vec3(4, 4, 6.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 	Lproj.tex.load("../../models/textures/batman.png",0);
@@ -422,6 +387,7 @@ int main(void)
 		gui_setup();
 
 		/* rotate the view accordingly to view_rot*/
+		/* Exc: find a simpler series of operations to define curr_view*/
 		view_frame = inverse(view);
 		glm::mat4 curr_view = view_frame;
 		curr_view[3] = glm::vec4(0, 0, 0, 1);
@@ -448,39 +414,36 @@ int main(void)
 		
 
 		check_gl_errors(__LINE__, __FILE__, true);
-		/* draw the scene six times, one for each face of the cube  */
-		
-		if( selected == 5 )
-		{
-//			glActiveTexture(GL_TEXTURE1);
-//			glBindTexture(GL_TEXTURE_CUBE_MAP, skybox.id);
 
-			
+		/* on-the-fly computation of the environment  map for the sphere */
+		if( selected == 5 ){		
+			/* draw the scene six times, one for each face of the cube  */
 			glm::vec3 tar[6] = { glm::vec3(1.f,0,0),glm::vec3(-1.f,0.f,0),glm::vec3(0.f,1.f,0),glm::vec3(0.f,-1.f,0),glm::vec3(0.f,0,1),glm::vec3(0.f,0,-1.f) };
 			glm::vec3 up[6]  = { glm::vec3(0.0,-1,0),glm::vec3(0.0,-1.f,0),glm::vec3(0.0,0.f,1),glm::vec3(0.0,0.0,-1),glm::vec3(0.f,-1,0),glm::vec3(0.f,-1,0) };
 
-			glm::mat4 projsB, viewSB;
+			glm::mat4 projsB;
 			projsB = glm::perspective(3.14f/2.f, 1.f, 0.1f, 100.0f);
 			glUniformMatrix4fv(texture_shader["uP"], 1, GL_FALSE, &projsB[0][0]);
 
 			glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
 
+			/* the point of view is set to the center of the sphere */
 			glm::vec3 eye = glm::vec3(0, 0.5, 0.0);
-			if (_transf)
-				eye =  tb[0].matrix()*glm::vec4(eye,1.0);
+
+			/* the point of view is transformed by the trackball */
+			eye =  tb[0].matrix()*glm::vec4(eye,1.0);
 
 			for (unsigned int i = 0; i < 6; ++i) {
+				/* set to which face of the cubemap the rendering on this direction will be written */
 				glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X+i, reflection_map.id, 0);
-			 	viewSB = glm::lookAt(eye, eye + tar[i], up[i]);
-				glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &viewSB[0][0]);
+				glUniformMatrix4fv(texture_shader["uV"], 1, GL_FALSE, &glm::lookAt(eye, eye + tar[i], up[i])[0][0]);
+
+				/* the viewport is set to the same size as the faces of the cubemap*/
 				glViewport(0, 0, 2048, 2048);
 				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				draw_scene_no_target();
 			}
 			glBindFramebuffer(GL_FRAMEBUFFER,0);
-
-//			glActiveTexture(GL_TEXTURE1);
-	//		glBindTexture(GL_TEXTURE_CUBE_MAP, reflection_map.id);
 		}
 		/* --------------------------------------------------------*/
  
