@@ -1,7 +1,9 @@
 #version 330 core  
 out vec4 color; 
 
-uniform int uRenderMode;
+in vec2 vTexCoord;
+
+uniform sampler2D uTexture;
 
 // this produce the Hue for v:0..1 (for debug purposes)
 vec3 hsv2rgb(float  v)
@@ -13,6 +15,5 @@ vec3 hsv2rgb(float  v)
 
 void main(void) 
 { 
-	color = vec4(vec3((gl_FragCoord.z)),1.0);
-//	color = vec4(1.0,0.0,0.0,1.0);
+	color = texture(uTexture,vTexCoord);
 } 

@@ -158,6 +158,8 @@
     <None Include="..\..\src\code_13_shadows\shaders\depthmap.vert" />
     <None Include="..\..\src\code_13_shadows\shaders\flat.frag" />
     <None Include="..\..\src\code_13_shadows\shaders\flat.vert" />
+    <None Include="..\..\src\code_13_shadows\shaders\fsq.frag" />
+    <None Include="..\..\src\code_13_shadows\shaders\fsq.vert" />
     <None Include="..\..\src\code_13_shadows\shaders\shadow_mapping.frag" />
     <None Include="..\..\src\code_13_shadows\shaders\shadow_mapping.vert" />
   </ItemGroup>

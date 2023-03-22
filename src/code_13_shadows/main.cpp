@@ -72,10 +72,10 @@ matrix_stack stack;
 frame_buffer_object fbo;
 
 /* object that will be rendered in this scene*/
-renderable r_frame, r_plane,r_line,r_torus,r_cube, r_sphere;
+renderable r_frame, r_plane,r_line,r_torus,r_cube, r_sphere,r_quad;
 
 /* program shaders used */
-shader depth_shader,shadow_shader,flat_shader;
+shader depth_shader,shadow_shader,flat_shader,fsq_shader;
 
 /* implementation of view controller */
 
@@ -147,7 +147,8 @@ void gui_setup() {
 
 	if (ImGui::BeginMenu("Shadow mode"))
 	{
-	 if (ImGui::Selectable("Basic shadow mapping", selected == 0)) selected = 0;
+	 if (ImGui::Selectable("none", selected == 0)) selected = 0;
+	 if (ImGui::Selectable("Basic shadow mapping", selected == 1)) selected = 1;
 	 ImGui::EndMenu();
 	}
 	if (ImGui::BeginMenu("Trackball")) {
@@ -198,6 +199,22 @@ void draw_scene(  shader & sh) {
 	draw_torus(sh);
 }
 
+void draw_full_screen_quad() {
+	r_quad.bind();
+	glDrawElements(GL_TRIANGLES, 6,GL_UNSIGNED_INT, 0);
+}
+
+void draw_texture(GLint tex_id ) {
+	GLint at;
+	glGetIntegerv(GL_ACTIVE_TEXTURE, &at);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, tex_id);
+	glUseProgram(fsq_shader.pr);
+	glUniform1i(fsq_shader["uTexture"], 3);
+	draw_full_screen_quad();
+	glUseProgram(0);
+	glActiveTexture(at);
+}
 int main(void)
 {
 	GLFWwindow* window;
@@ -258,6 +275,14 @@ int main(void)
 	validate_shader_program(shadow_shader.pr);
 	check_gl_errors(__LINE__, __FILE__, true);
 
+	fsq_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "fsq.frag").c_str());
+	shadow_shader.bind("uTexture");
+
+	check_shader(fsq_shader.vs);
+	check_shader(fsq_shader.fs);
+	validate_shader_program(fsq_shader.pr);
+	check_gl_errors(__LINE__, __FILE__, true);
+
 	flat_shader.create_program((shaders_path + "flat.vert").c_str(), (shaders_path + "flat.frag").c_str());
 	flat_shader.bind("uP");
 	flat_shader.bind("uV");
@@ -300,13 +325,17 @@ int main(void)
 	/* create a sphere */
 	r_sphere = shape_maker::sphere();
 
+	/* create a quad with size 2 centered to the origin and on the XY pane */
+	r_quad = shape_maker::quad();
+
 	/* initial light direction */
 	Ldir = glm::vec4(0.0, 1.0, 0.0, 0.0);
 
 	/* light projection */
 	check_gl_errors(__LINE__, __FILE__, true);
-	Lproj.sm_size_x = Lproj.sm_size_y = 512;
-	Lproj.view_matrix = glm::lookAt(glm::vec3(4, 4, 6.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+	Lproj.sm_size_x = 512;
+	Lproj.sm_size_y = 512;
+	Lproj.view_matrix = glm::lookAt(glm::vec3(0, 2, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f));
 	Lproj.tex.load("../../models/textures/batman.png",0);
  	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
  	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
@@ -317,7 +346,7 @@ int main(void)
 	view = glm::lookAt(glm::vec3(0, 3, 4.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 
 	glUseProgram(depth_shader.pr);
-	Lproj.view_matrix = glm::lookAt(glm::vec3(3, 3, 4.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+	Lproj.view_matrix = glm::lookAt(glm::vec3(0, 2, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f));
 	Lproj.set_projection(Lproj.view_matrix, box3(2.f));
 	glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
 	glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &glm::mat4(1.f)[0][0]);
@@ -352,8 +381,9 @@ int main(void)
 
 	load_textures();
 	
-	fbo.create(Lproj.sm_size_x, Lproj.sm_size_y);
 	check_gl_errors(__LINE__, __FILE__, true);
+	fbo.create(Lproj.sm_size_x, Lproj.sm_size_y,true);
+	
 
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
@@ -376,24 +406,38 @@ int main(void)
 		stack.push();
 		stack.mult(tb[0].matrix());
 
-		//stack.push();
-		glViewport(0, 0, 1000, 800);
 
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
-//		glm::mat4 lm = Lproj.proj_matrix*Lproj.view_matrix;
-
-		glm::mat4 lm = glm::orthoRH(-2.f,2.f,-2.f,2.f,0.f,10.f)*Lproj.view_matrix;
+	 	glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
+		glViewport(0, 0, 512, 512);
+		glClearDepth(1.0);
+		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
 		glUseProgram(depth_shader.pr);
-		glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &lm[0][0]);
+		Lproj.view_matrix = glm::lookAt(glm::vec3(0, 2, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f)) *inverse(tb[1].matrix());
+		Lproj.set_projection(Lproj.view_matrix, box3(2.f));
  		glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
 		glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 		 
 		draw_scene(depth_shader);
-	
-		//stack.pop();
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+		//draw_texture(fbo.id_tex);
+		
+		glViewport(0, 0, 1000, 800);
+
+
+		glUseProgram(shadow_shader.pr);
+		glUniformMatrix4fv(shadow_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
+		glUniformMatrix4fv(shadow_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
+		glUniformMatrix4fv(shadow_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, fbo.id_tex);
+		glUniform1i(shadow_shader["uTexture"], 0);
+
+		glUniform1i(shadow_shader["uRenderMode"], selected);
+
+		draw_scene(shadow_shader);
 		// render the reference frame
 		glUseProgram(flat_shader.pr);
 		glUniformMatrix4fv(flat_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
