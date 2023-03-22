@@ -8,6 +8,7 @@ struct frame_buffer_object {
 
 	int w, h;
 	GLuint id_fbo, id_tex, id_depth;
+	bool use_texture_for_depth;
 
 	void check(int fboStatus)
 	{
@@ -25,9 +26,9 @@ struct frame_buffer_object {
 	}
 
 
-	void create(int w_, int h_,bool use_texture_for_depth = false)
+	void create(int w_, int h_,bool _use_texture_for_depth = false)
 	{
-		if ((w == w_) && (h == h_))
+		if ((w == w_) && (h == h_)&& _use_texture_for_depth== use_texture_for_depth)
 			return;
 		w = w_;
 		h = h_;
@@ -46,7 +47,8 @@ struct frame_buffer_object {
 
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, this->id_tex, 0);
 		check_gl_errors(__LINE__, __FILE__, true);
-		if (use_texture_for_depth) {
+		use_texture_for_depth = _use_texture_for_depth;
+		if (_use_texture_for_depth) {
 			/* texture for depth  attachment*/
 			glGenTextures(1, &this->id_depth);
 			glBindTexture(GL_TEXTURE_2D, this->id_depth);
@@ -73,7 +75,10 @@ struct frame_buffer_object {
 	void remove()
 	{
 		glDeleteFramebuffers(1, &this->id_fbo);
-		glDeleteRenderbuffers(1, &this->id_depth);
+		if(use_texture_for_depth)
+			glDeleteTextures(1, &this->id_depth);
+		else
+			glDeleteRenderbuffers(1, &this->id_depth);
 	}
 };
 

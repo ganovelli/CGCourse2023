@@ -46,9 +46,10 @@ struct projector {
 	glm::mat4 light_matrix() {
 		return proj_matrix*view_matrix;
 	}
-	float sm_size_x, sm_size_y;
+	int sm_size_x, sm_size_y;
 };
 
+float depth_bias;
 
 projector Lproj;
 
@@ -132,15 +133,6 @@ texture skybox,reflection_map;
 
 static int selected = 0;
 
-void load_textures() {
-	std::string path = "../../models/textures/desert_cubemap/";
-	skybox.load_cubemap(path + "posx.jpg", path + "negx.jpg", 
-						path + "posy.jpg", path + "negy.jpg",
-						path + "posz.jpg", path + "negz.jpg",1);
-
-	glActiveTexture(GL_TEXTURE2);
-	reflection_map.create_cubemap(2048, 2048,3);
-}
 
 void gui_setup() {
 	ImGui::BeginMainMenuBar();
@@ -149,8 +141,36 @@ void gui_setup() {
 	{
 	 if (ImGui::Selectable("none", selected == 0)) selected = 0;
 	 if (ImGui::Selectable("Basic shadow mapping", selected == 1)) selected = 1;
+	 if (ImGui::Selectable("bias", selected == 2)) selected = 2;
 	 ImGui::EndMenu();
 	}
+	if (ImGui::BeginMenu("parameters"))
+	{
+		bool redo_fbo = false;
+		const char* items[] = { "512", "1024", "2048", "4096"};
+		static int item_current = 1;
+		int xi, yi;
+		if (ImGui::ListBox("sm width", &xi, items, IM_ARRAYSIZE(items), 4))
+			if (Lproj.sm_size_x != 1 << (9 + xi)) {
+				redo_fbo = true;
+				Lproj.sm_size_x = 1 << (9 + xi);
+			}
+		if(ImGui::ListBox("sm height", &yi, items, IM_ARRAYSIZE(items), 4))
+			if (Lproj.sm_size_y != 1 << (9 + yi)) {
+				redo_fbo = true;
+				Lproj.sm_size_y = 1 << (9 + yi);
+			}
+
+		if (redo_fbo) {
+			fbo.remove();
+			fbo.create(Lproj.sm_size_x, Lproj.sm_size_y,true);
+		}
+		 
+		ImGui::InputFloat("depth bias", &depth_bias);
+
+		ImGui::EndMenu();
+	}
+
 	if (ImGui::BeginMenu("Trackball")) {
 		if (ImGui::Selectable("control scene", curr_tb == 0)) curr_tb = 0;
 		if (ImGui::Selectable("control light", curr_tb == 1)) curr_tb = 1;
@@ -268,6 +288,7 @@ int main(void)
 	shadow_shader.bind("uV");
 	shadow_shader.bind("uT");
 	shadow_shader.bind("uLightMatrix");
+	shadow_shader.bind("uBias");
 	shadow_shader.bind("uRenderMode");
 
 	check_shader(shadow_shader.vs);
@@ -335,6 +356,7 @@ int main(void)
 	check_gl_errors(__LINE__, __FILE__, true);
 	Lproj.sm_size_x = 512;
 	Lproj.sm_size_y = 512;
+	depth_bias = 0;
 	Lproj.view_matrix = glm::lookAt(glm::vec3(0, 2, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f));
 	Lproj.tex.load("../../models/textures/batman.png",0);
  	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
@@ -378,8 +400,6 @@ int main(void)
 
 	/* define the viewport  */
 	glViewport(0, 0, 1000, 800);
-
-	load_textures();
 	
 	check_gl_errors(__LINE__, __FILE__, true);
 	fbo.create(Lproj.sm_size_x, Lproj.sm_size_y,true);
@@ -408,7 +428,7 @@ int main(void)
 
 
 	 	glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
-		glViewport(0, 0, 512, 512);
+		glViewport(0, 0, Lproj.sm_size_x, Lproj.sm_size_y);
 		glClearDepth(1.0);
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
@@ -430,9 +450,10 @@ int main(void)
 		glUniformMatrix4fv(shadow_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
 		glUniformMatrix4fv(shadow_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
 		glUniformMatrix4fv(shadow_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-
+		glUniform1fv(shadow_shader["uBias"], 1,&depth_bias);
+		std::cout << "db " << depth_bias << "\n";
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, fbo.id_tex);
+		glBindTexture(GL_TEXTURE_2D, fbo.id_depth);
 		glUniform1i(shadow_shader["uTexture"], 0);
 
 		glUniform1i(shadow_shader["uRenderMode"], selected);

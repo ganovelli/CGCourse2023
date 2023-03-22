@@ -9,7 +9,7 @@ out vec3 vNormalWS;
 uniform mat4 uP;
 uniform mat4 uV;
 uniform mat4 uT;
-uniform mat4 uLightMatrix;
+uniform mat4	 uLightMatrix;
 
 uniform int uRenderMode;
 
