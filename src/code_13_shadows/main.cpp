@@ -40,7 +40,8 @@ struct projector {
 	texture tex;
 	glm::mat4 set_projection(glm::mat4 _view_matrix, box3 box) {
 		view_matrix = _view_matrix;
-		proj_matrix =  glm::orthoRH(-2.f, 2.f, -2.f, 2.f,0.f,20.f);
+		proj_matrix =  glm::ortho(-2.f, 2.f, -2.f, 2.f,0.f,20.f);
+//		proj_matrix = glm::perspective(3.14f/2.f,1.0f,0.1f, 20.f);
 		return proj_matrix;
 	}
 	glm::mat4 light_matrix() {
@@ -50,6 +51,7 @@ struct projector {
 };
 
 float depth_bias;
+float distance_light;
 
 projector Lproj;
 
@@ -142,6 +144,8 @@ void gui_setup() {
 	 if (ImGui::Selectable("none", selected == 0)) selected = 0;
 	 if (ImGui::Selectable("Basic shadow mapping", selected == 1)) selected = 1;
 	 if (ImGui::Selectable("bias", selected == 2)) selected = 2;
+	 if (ImGui::Selectable("slope bias", selected == 3)) selected = 3;
+	 if (ImGui::Selectable("back faces", selected == 4)) selected = 4;
 	 ImGui::EndMenu();
 	}
 	if (ImGui::BeginMenu("parameters"))
@@ -167,6 +171,7 @@ void gui_setup() {
 		}
 		 
 		ImGui::InputFloat("depth bias", &depth_bias);
+		ImGui::InputFloat("distance light", &distance_light);
 
 		ImGui::EndMenu();
 	}
@@ -357,7 +362,8 @@ int main(void)
 	Lproj.sm_size_x = 512;
 	Lproj.sm_size_y = 512;
 	depth_bias = 0;
-	Lproj.view_matrix = glm::lookAt(glm::vec3(0, 2, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f));
+	distance_light = 2.0;
+	Lproj.view_matrix = glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f));
 	Lproj.tex.load("../../models/textures/batman.png",0);
  	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
  	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
@@ -368,7 +374,7 @@ int main(void)
 	view = glm::lookAt(glm::vec3(0, 3, 4.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 
 	glUseProgram(depth_shader.pr);
-	Lproj.view_matrix = glm::lookAt(glm::vec3(0, 2, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f));
+	Lproj.view_matrix = glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f));
 	Lproj.set_projection(Lproj.view_matrix, box3(2.f));
 	glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
 	glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &glm::mat4(1.f)[0][0]);
@@ -433,12 +439,18 @@ int main(void)
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
 		glUseProgram(depth_shader.pr);
-		Lproj.view_matrix = glm::lookAt(glm::vec3(0, 2, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f)) *inverse(tb[1].matrix());
+		Lproj.view_matrix = glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f)) *inverse(tb[1].matrix());
 		Lproj.set_projection(Lproj.view_matrix, box3(2.f));
  		glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
 		glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 		 
+		if (selected == 4) {
+			glEnable(GL_CULL_FACE);
+			glCullFace(GL_FRONT);
+		}
+
 		draw_scene(depth_shader);
+		glCullFace(GL_BACK);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		//draw_texture(fbo.id_tex);
@@ -451,7 +463,6 @@ int main(void)
 		glUniformMatrix4fv(shadow_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
 		glUniformMatrix4fv(shadow_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 		glUniform1fv(shadow_shader["uBias"], 1,&depth_bias);
-		std::cout << "db " << depth_bias << "\n";
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, fbo.id_depth);
 		glUniform1i(shadow_shader["uTexture"], 0);

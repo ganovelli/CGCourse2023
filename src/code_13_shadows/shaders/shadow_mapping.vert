@@ -5,6 +5,7 @@ layout (location = 2) in vec3 aNormal;
 out vec4 vCoordLS;
 out vec3 vNormalVS;
 out vec3 vNormalWS;
+out vec3 vLWS;
 
 uniform mat4 uP;
 uniform mat4 uV;
@@ -20,4 +21,17 @@ void main(void)
 	vNormalVS = normalize((uV*uT*vec4(aNormal,0.0)).xyz);
 	vNormalWS = normalize(( uT*vec4(aNormal,0.0)).xyz);
 	vCoordLS =  uLightMatrix*uT*vec4(aPosition, 1.0);
+
+
+	vec4 vCoordLS_NDC = (vCoordLS/vCoordLS.w);
+	vec4 f = vec4(vCoordLS_NDC.xy, 1,1.0);
+	vec4 n = vec4(vCoordLS_NDC.xy,-1,1.0);
+	vec4 fWS = inverse(uLightMatrix)*f;
+	fWS/=fWS.w;
+
+	vec4 nWS = inverse(uLightMatrix)*n;
+	nWS/=nWS.w;
+
+	vLWS = normalize((nWS-fWS).xyz);
+
 }
