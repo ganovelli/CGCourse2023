@@ -3,8 +3,11 @@
 #include <GL/glew.h>
 #include <stdio.h>
 #include <string>
+#include <sstream>
+#include <iostream>
 #include <map>
 #include <fstream>
+#include <regex>
 #include "../common/debugging.h"
 
 struct shader{
@@ -49,6 +52,33 @@ struct shader{
 			return true;
 		}
 
+		void bind_uniform_variables(std::string code) {
+			
+			code.erase(std::remove(code.begin(), code.end(), '\n'), code.end());
+			code.erase(std::remove(code.begin(), code.end(), '\t'), code.end());
+			code.erase(std::remove(code.begin(), code.end(), '\b'), code.end());
+
+			int pos;
+			std::istringstream check1(code);
+
+			std::string intermediate;
+			std::vector <std::string> tokens;
+			// Tokenizing w.r.t. space ' '
+			while (getline(check1, intermediate, ';'))
+			{
+				std::regex_replace(intermediate, std::regex("  "), " ");
+
+				if (intermediate.find(" ") == 0)
+					intermediate.erase(0, 1);
+
+				if (intermediate.find("uniform") == 0) {
+					pos = intermediate.find_last_of(" ");
+					std::string uniform_name = intermediate.substr(pos+1, intermediate.length() - pos);
+					this->bind(uniform_name);
+					tokens.push_back(intermediate.substr(pos+1, intermediate.length() - pos));
+				}
+			}
+		}
 
         void  create_program( const GLchar *nameV, const char *nameF){
 		
@@ -63,7 +93,14 @@ struct shader{
 			glAttachShader(pr,fs);
 
 			glLinkProgram(pr);
-	}
+
+			bind_uniform_variables(vs_src_code);
+			bind_uniform_variables(fs_src_code);
+
+			check_shader(vs);
+			check_shader(fs);
+			validate_shader_program(pr);
+		}
 
 };
 

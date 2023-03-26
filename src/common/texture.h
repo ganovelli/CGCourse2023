@@ -35,7 +35,18 @@ struct texture {
 		return id;
 	}
 
-	GLuint load_cubemap(std::string posx,std::string negx, 
+	GLuint create(int x_size, int y_size, GLuint channels) {
+		glGenTextures(1, &id);
+		glBindTexture(GL_TEXTURE_2D, id);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x_size, y_size, 0, channels, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		return id;
+	}
+
+	GLuint load_cubemap(std::string posx,std::string negx,
 		std::string posy,std::string negy, 
 		std::string posz,std::string negz, 
 		GLuint tu) {

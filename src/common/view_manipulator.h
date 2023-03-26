@@ -33,8 +33,8 @@ public:
 	}
 
 	void mouse_press(double xpos, double ypos) {
-		start_xpos = xpos;
-		start_ypos = ypos;
+		start_xpos = (float) xpos;
+		start_ypos = (float) ypos;
 		is_dragged = true;
 	}
 	void mouse_release() {
