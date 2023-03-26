@@ -4,6 +4,7 @@ out vec4 color;
 in vec4 vCoordLS;
 in vec3 vNormalVS;
 in vec3 vNormalWS;
+in vec3 vVWS;
 in vec3 vLWS;
 
 uniform int uRenderMode;
@@ -28,9 +29,12 @@ void main(void)
 {	
 	vec3 N = normalize(vNormalWS);
 	vec3 L = normalize(vLWS);
+	vec3 V = normalize(vVWS);
 
-	vec3 shaded = vec3(max(0.0,dot(vec3(0,1,0),normalize(vNormalVS))))*uDiffuseColor;
+//	vec3 shaded = (vec3(max(0.0,dot(L,N))) +vec3(max(0.0,dot(V,N)))*0.0)*uDiffuseColor;
+	vec3 shaded = (vec3(max(0.0,dot(L,N))) +vec3(0.6,0.6,0.6))*uDiffuseColor;
 	float lit = 1.0;
+
 	if(uRenderMode==0) // just diffuse gray
 		{
 			color = vec4(shaded,1.0);
@@ -50,18 +54,17 @@ void main(void)
 		vec4 pLS = (vCoordLS/vCoordLS.w)*0.5+0.5;
 		float depth = texture(uShadowMap,pLS.xy).x;
 		if(depth + uBias < pLS.z )
-			lit =0.5;
+			lit = 0.5;
          color = vec4(shaded*lit,1.0);
 	}else
 	if(uRenderMode==3) // slope bias
 	{
-		float bias = clamp(uBias*tan(acos(dot(N,L))),0.0,1.05); 
+		float bias = clamp(uBias*tan(acos(dot(N,L))),uBias,0.05); 
 		vec4 pLS = (vCoordLS/vCoordLS.w)*0.5+0.5;
 		float depth = texture(uShadowMap,pLS.xy).x;
 		if(depth + bias < pLS.z )
-			lit =0.5;
+			lit = 0.5;
          color = vec4(shaded*lit,1.0);
-		 color = vec4(vec3(depth),1.0);
 	}else
 	if(uRenderMode==4) // backfaces for watertight objects
 	{
@@ -79,7 +82,7 @@ void main(void)
 		for( float y = 0.0; y < 5.0;y+=1.0)
 			{
 				storedDepth =  texture(uShadowMap,pLS.xy+vec2(-2.0+x,-2.0+y)/uShadowMapSize).x;
-				if(storedDepth  < pLS.z || dot(N,L)<0.f)    
+				if(storedDepth + uBias < pLS.z || dot(N,L)<0.f)    
 					lit  -= 0.5/25.0;
 			}
 	 color = vec4(shaded*lit,1.0);

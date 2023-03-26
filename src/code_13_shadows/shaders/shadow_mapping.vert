@@ -5,6 +5,7 @@ layout (location = 2) in vec3 aNormal;
 out vec4 vCoordLS;
 out vec3 vNormalVS;
 out vec3 vNormalWS;
+out vec3 vVWS;
 out vec3 vLWS;
 
 uniform mat4 uP;
@@ -19,7 +20,8 @@ void main(void)
     gl_Position = uP*uV*uT*vec4(aPosition, 1.0); 
 	
 	vNormalVS = normalize((uV*uT*vec4(aNormal,0.0)).xyz);
-	vNormalWS = normalize(( uT*vec4(aNormal,0.0)).xyz);
+	vNormalWS = normalize(( transpose(inverse(uT))*vec4(aNormal,0.0)).xyz);
+	vVWS = (inverse(uV)*(vec4(0.0,0.0,0.0,1.0)-uV*uT*vec4(aPosition, 1.0))).xyz;
 	vCoordLS =  uLightMatrix*uT*vec4(aPosition, 1.0);
 
 
