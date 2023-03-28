@@ -151,9 +151,11 @@
     <ClCompile Include="..\..\3dparty\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\..\3dparty\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\..\3dparty\imgui\imgui_widgets.cpp" />
-    <ClCompile Include="..\..\src\code_13_shadows\main.cpp" />
+    <ClCompile Include="..\..\src\code_14_ambient_obscurance\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\src\code_14_ambient_obscurance\shaders\ao.frag" />
+    <None Include="..\..\src\code_14_ambient_obscurance\shaders\ao.vert" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\blur.frag" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\depthmap.frag" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\depthmap.vert" />
