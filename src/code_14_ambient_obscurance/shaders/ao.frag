@@ -44,8 +44,7 @@ void main(void)
 	color = vec4(vec3(ao) ,1.0);
 
 	
- //	 color =  vec4(gl_FragCoord.xyz/512.0,1.0);
-// color = vec4(texture2D(uDepthMap,vTexCoord).xyz,1.0);
- //		color = vec4(hash32(gl_FragCoord.xy ) ,1.0);
-
+//		color =  vec4(gl_FragCoord.xyz/512.0,1.0);
+//		color = vec4(texture2D(uDepthMap,vTexCoord).xyz,1.0);
+//		color = vec4(hash32(gl_FragCoord.xy ) ,1.0);
 }

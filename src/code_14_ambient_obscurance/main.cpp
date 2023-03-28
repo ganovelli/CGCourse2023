@@ -57,7 +57,7 @@ glm::mat4 view ;
 matrix_stack stack;
 
 /* a frame buffer object for the offline rendering*/
-frame_buffer_object fbo, fbo_blur;
+frame_buffer_object fbo, fbo_ao,fbo_blur;
 
 /* object that will be rendered in this scene*/
 renderable r_frame, r_plane,r_line,r_torus,r_cube, r_sphere,r_quad;
@@ -162,6 +162,8 @@ void gui_setup() {
 		if (redo_fbo) {
 			fbo.remove();
 			fbo.create(g_buffer_size_x, g_buffer_size_y,true);
+			fbo_ao.remove();
+			fbo_ao.create(g_buffer_size_x, g_buffer_size_y, true);
 			fbo_blur.remove();
 			fbo_blur.create(g_buffer_size_x, g_buffer_size_y, true);
 		}
@@ -421,13 +423,16 @@ int main(void)
 	check_gl_errors(__LINE__, __FILE__, true);
 	fbo.create(g_buffer_size_x, g_buffer_size_y,true);
 	fbo_blur.create(g_buffer_size_x, g_buffer_size_y, true);
+	fbo_ao.create(g_buffer_size_x, g_buffer_size_y, true);
 
 
+	texture ao_tex;
+	ao_tex.create(g_buffer_size_x, g_buffer_size_y,GL_RGB);
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
 		/* Render here */
-		glClearColor(1.0, 1.0, 1.0, 1.0);
+		glClearColor(1.0, 0.6, 0.7, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 		ImGui_ImplOpenGL3_NewFrame();
@@ -457,11 +462,11 @@ int main(void)
 		draw_scene(g_buffer_shader);
 		check_gl_errors(__LINE__, __FILE__, true);
 
-
 //goto swapbuffers;
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-		glViewport(0, 0, 1000, 800);
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo_ao.id_fbo);
+		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 		glUseProgram(ao_shader.pr);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, fbo.id_tex);
@@ -469,6 +474,12 @@ int main(void)
 		glUniform1f(ao_shader["uRadius"], radius);
 		glUniform1f(ao_shader["uDepthScale"], depthscale);
 		draw_full_screen_quad();
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		blur_texture(fbo_ao.id_tex);
+
+		glViewport(0, 0, 1000, 800);
+		draw_texture(fbo_ao.id_tex);
 
 //		glViewport(0, 0, 1000, 800);
 //		glUseProgram(ao_shader.pr);
