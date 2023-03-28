@@ -157,12 +157,12 @@
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\ao.frag" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\ao.vert" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\blur.frag" />
-    <None Include="..\..\src\code_14_ambient_obscurance\shaders\depthmap.frag" />
-    <None Include="..\..\src\code_14_ambient_obscurance\shaders\depthmap.vert" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\flat.frag" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\flat.vert" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\fsq.frag" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\fsq.vert" />
+    <None Include="..\..\src\code_14_ambient_obscurance\shaders\g_buffer.frag" />
+    <None Include="..\..\src\code_14_ambient_obscurance\shaders\g_buffer.vert" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\shadow_mapping.frag" />
     <None Include="..\..\src\code_14_ambient_obscurance\shaders\shadow_mapping.vert" />
   </ItemGroup>

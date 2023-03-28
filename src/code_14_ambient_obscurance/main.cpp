@@ -82,7 +82,7 @@ std::vector<renderable> r_knife;
 
 
 /* program shaders used */
-shader ao_shader,depth_shader,shadow_shader,flat_shader,fsq_shader,blur_shader;
+shader ao_shader, g_buffer_shader,depth_shader/*,shadow_shader*/,flat_shader,fsq_shader,blur_shader;
 
 /* implementation of view controller */
 
@@ -339,7 +339,8 @@ int main(void)
 	std::string shaders_path = "../../src/code_14_ambient_obscurance/shaders/";
 	depth_shader.create_program((shaders_path+"depthmap.vert").c_str(), (shaders_path+"depthmap.frag").c_str());
 	ao_shader.create_program((shaders_path + "ao.vert").c_str(), (shaders_path + "ao.frag").c_str());
-	shadow_shader.create_program((shaders_path + "shadow_mapping.vert").c_str(), (shaders_path + "shadow_mapping.frag").c_str());
+	g_buffer_shader.create_program((shaders_path + "g_buffer.vert").c_str(), (shaders_path + "g_buffer.frag").c_str());
+	//	shadow_shader.create_program((shaders_path + "shadow_mapping.vert").c_str(), (shaders_path + "shadow_mapping.frag").c_str());
 	fsq_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "fsq.frag").c_str());
 	flat_shader.create_program((shaders_path + "flat.vert").c_str(), (shaders_path + "flat.frag").c_str());
 	blur_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "blur.frag").c_str());
@@ -347,8 +348,10 @@ int main(void)
 	/* Set the uT matrix to Identity */
 	glUseProgram(depth_shader.pr);
 	glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
-	glUseProgram(shadow_shader.pr);
-	glUniformMatrix4fv(shadow_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
+	glUseProgram(ao_shader.pr);
+	glUniformMatrix4fv(ao_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
+	glUseProgram(g_buffer_shader.pr);
+	glUniformMatrix4fv(g_buffer_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
 	glUseProgram(flat_shader.pr);
 	glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
 	glUseProgram(0);
@@ -419,13 +422,18 @@ int main(void)
 	glUniformMatrix4fv(ao_shader["uV"], 1, GL_FALSE, &view[0][0]);
 	glUseProgram(0);
 
-	glUseProgram(shadow_shader.pr);
-	glUniformMatrix4fv(shadow_shader["uP"], 1, GL_FALSE, &proj[0][0]);
-	glUniformMatrix4fv(shadow_shader["uV"], 1, GL_FALSE, &view[0][0]);
-	glUniformMatrix4fv(shadow_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
-	glUniform1i(shadow_shader["uShadowMap"], 0);
-	glUniform2i(shadow_shader["uShadowMapSize"], Lproj.sm_size_x, Lproj.sm_size_y);
+	glUseProgram(g_buffer_shader.pr);
+	glUniformMatrix4fv(g_buffer_shader["uP"], 1, GL_FALSE, &proj[0][0]);
+	glUniformMatrix4fv(g_buffer_shader["uV"], 1, GL_FALSE, &view[0][0]);
 	glUseProgram(0);
+
+	//glUseProgram(shadow_shader.pr);
+	//glUniformMatrix4fv(shadow_shader["uP"], 1, GL_FALSE, &proj[0][0]);
+	//glUniformMatrix4fv(shadow_shader["uV"], 1, GL_FALSE, &view[0][0]);
+	//glUniformMatrix4fv(shadow_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
+	//glUniform1i(shadow_shader["uShadowMap"], 0);
+	//glUniform2i(shadow_shader["uShadowMapSize"], Lproj.sm_size_x, Lproj.sm_size_y);
+	//glUseProgram(0);
 	check_gl_errors(__LINE__, __FILE__, true);
 
 	glUseProgram(flat_shader.pr);
@@ -474,26 +482,19 @@ int main(void)
 		stack.mult(tb[0].matrix());
 
 
-	 	glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
-		glViewport(0, 0, Lproj.sm_size_x, Lproj.sm_size_y);
+//	 	glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
+//		glViewport(0, 0, 512, 512);
+		glViewport(0, 0, 1000, 800);
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-		glUseProgram(depth_shader.pr);
-		Lproj.view_matrix = glm::lookAt(glm::vec3(0.f, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f)) *inverse(tb[1].matrix());
-		Lproj.set_projection(Lproj.view_matrix, box3(2.f));
- 		glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
-		glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		glUniform1i(depth_shader["uPlaneApprox"], (use_plane_approx)?1:0);
+		glUseProgram(g_buffer_shader.pr);
+		glUniformMatrix4fv(g_buffer_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
+		glUniformMatrix4fv(g_buffer_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 
-		if (selected == 4 || selected == 5) {
-			glEnable(GL_CULL_FACE);
-			glCullFace(GL_FRONT);
-		}
-
-		draw_scene(depth_shader);
+		draw_scene(g_buffer_shader);
 		check_gl_errors(__LINE__, __FILE__, true);
  
-		//goto swapbuffers;
+goto swapbuffers;
 
 
 		glCullFace(GL_BACK);
