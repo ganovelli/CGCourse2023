@@ -35,23 +35,25 @@ and set the path properly.
 glm::vec4 Ldir;
 
 /* projector */
+float depth_bias;
+float distance_light;
+
 struct projector {
 	glm::mat4 view_matrix,proj_matrix;
 	texture tex;
 	glm::mat4 set_projection(glm::mat4 _view_matrix, box3 box) {
 		view_matrix = _view_matrix;
-		proj_matrix =  glm::ortho(-2.f, 2.f, -2.f, 2.f,0.f,20.f);
-//		proj_matrix = glm::perspective(3.14f/2.f,1.0f,0.1f, 20.f);
+		proj_matrix =  glm::ortho(-4.f, 4.f, -4.f, 4.f,0.f, distance_light*2.f);
+//		proj_matrix = glm::perspective(3.14f/2.f,1.0f,0.1f, distance_light*2.f);
 		return proj_matrix;
 	}
 	glm::mat4 light_matrix() {
 		return proj_matrix*view_matrix;
 	}
+	// size of the shadow map in texels
 	int sm_size_x, sm_size_y;
 };
 
-float depth_bias;
-float distance_light;
 
 projector Lproj;
 
@@ -72,13 +74,13 @@ glm::mat4 view ;
 matrix_stack stack;
 
 /* a frame buffer object for the offline rendering*/
-frame_buffer_object fbo;
+frame_buffer_object fbo, fbo_blur;
 
 /* object that will be rendered in this scene*/
 renderable r_frame, r_plane,r_line,r_torus,r_cube, r_sphere,r_quad;
 
 /* program shaders used */
-shader depth_shader,shadow_shader,flat_shader,fsq_shader;
+shader depth_shader,shadow_shader,flat_shader,fsq_shader,blur_shader;
 
 /* implementation of view controller */
 
@@ -89,6 +91,7 @@ view_manipulator view_man;
 /* callback function called when the mouse is moving */
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
+	if (ImGui::GetIO().WantCaptureMouse) return;
 	if(curr_tb<2)
 		tb[curr_tb].mouse_move(proj, view, xpos, ypos);
 	else
@@ -98,6 +101,8 @@ static void cursor_position_callback(GLFWwindow* window, double xpos, double ypo
 /* callback function called when a mouse button is pressed */
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
+	if (ImGui::GetIO().WantCaptureMouse) return;
+
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
 		double xpos, ypos;
 		glfwGetCursorPos(window, &xpos, &ypos);
@@ -118,6 +123,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 /* callback function called when a mouse wheel is rotated */
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
+	if (ImGui::GetIO().WantCaptureMouse) return;
+
 	if(curr_tb == 0)
 		tb[0].mouse_scroll(xoffset, yoffset);
 }
@@ -131,10 +138,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 void print_info() {
 }
 
-texture skybox,reflection_map;
+
 
 static int selected = 0;
-
+static bool use_plane_approx;
 
 void gui_setup() {
 	ImGui::BeginMainMenuBar();
@@ -146,33 +153,37 @@ void gui_setup() {
 	 if (ImGui::Selectable("bias", selected == 2)) selected = 2;
 	 if (ImGui::Selectable("slope bias", selected == 3)) selected = 3;
 	 if (ImGui::Selectable("back faces", selected == 4)) selected = 4;
+	 if (ImGui::Selectable("PCF", selected == 5)) selected = 5;
+	 if (ImGui::Selectable("Variance SM", selected == 6)) selected = 6;
 	 ImGui::EndMenu();
 	}
 	if (ImGui::BeginMenu("parameters"))
 	{
 		bool redo_fbo = false;
-		const char* items[] = { "512", "1024", "2048", "4096"};
+		const char* items[] = { "32","64","128","256","512", "1024", "2048", "4096"};
 		static int item_current = 1;
 		int xi, yi;
-		if (ImGui::ListBox("sm width", &xi, items, IM_ARRAYSIZE(items), 4))
-			if (Lproj.sm_size_x != 1 << (9 + xi)) {
+		if (ImGui::ListBox("sm width", &xi, items, IM_ARRAYSIZE(items), 8))
+			if (Lproj.sm_size_x != 1 << (5 + xi)) {
+				Lproj.sm_size_x = 1 << (5 + xi);
 				redo_fbo = true;
-				Lproj.sm_size_x = 1 << (9 + xi);
 			}
-		if(ImGui::ListBox("sm height", &yi, items, IM_ARRAYSIZE(items), 4))
-			if (Lproj.sm_size_y != 1 << (9 + yi)) {
+		if(ImGui::ListBox("sm height", &yi, items, IM_ARRAYSIZE(items), 8))
+			if (Lproj.sm_size_y != 1 << (5 + yi)) {
+				Lproj.sm_size_y = 1 << (5 + yi);
 				redo_fbo = true;
-				Lproj.sm_size_y = 1 << (9 + yi);
 			}
-
+		if (ImGui::SliderFloat("distance", &distance_light, 2.f, 100.f)) 
+			Lproj.set_projection(glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f))*inverse(tb[1].matrix()), box3(1.0));
+		ImGui::Checkbox("use plane approx", &use_plane_approx);
 		if (redo_fbo) {
 			fbo.remove();
 			fbo.create(Lproj.sm_size_x, Lproj.sm_size_y,true);
+			fbo_blur.remove();
+			fbo_blur.create(Lproj.sm_size_x, Lproj.sm_size_y, true);
 		}
 		 
 		ImGui::InputFloat("depth bias", &depth_bias);
-		ImGui::InputFloat("distance light", &distance_light);
-
 		ImGui::EndMenu();
 	}
 
@@ -187,14 +198,10 @@ void gui_setup() {
 }
 
 void draw_torus(  shader & sh) {
-	stack.push();
-	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.0, 0.5, 0.0)));
-	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
 	glUniformMatrix4fv(sh["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 	r_torus.bind();
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
 	glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
-	stack.pop();
 }
 
 void draw_plane(  shader & sh) {
@@ -205,23 +212,63 @@ void draw_plane(  shader & sh) {
 }
 
 
+void draw_pole(shader & sh) {
+	r_sphere.bind();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_sphere.inds[0].ind);
+	glDrawElements(r_sphere.inds[0].elem_type, r_sphere.inds[0].count, GL_UNSIGNED_INT, 0);
+}
 
 void draw_sphere(  shader & sh) {
-	stack.push();
-	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.5, 0.0)));
-	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.5, 0.5, 0.5)));
 	glUniformMatrix4fv(sh["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 	r_sphere.bind();
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_sphere.ind);
 	glDrawElements(GL_TRIANGLES, r_sphere.in, GL_UNSIGNED_INT, 0);
-	stack.pop();
 }
 
+void draw_cube(shader & sh) {
+	glUniformMatrix4fv(sh["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+	r_cube.bind();
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.ind);
+	glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
+}
 
 void draw_scene(  shader & sh) {
+	if (sh["uDiffuseColor"]) glUniform3f(sh["uDiffuseColor"], 0.6, 0.6, 0.6);
+	stack.push();
+	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(4.0, 4.0, 4.0)));
 	draw_plane(sh);
+	stack.pop();
+
+	if (sh["uDiffuseColor"]) glUniform3f(sh["uDiffuseColor"], 0.0, 0.4, 0.5);
+	stack.push();
+	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(-0.6, 0.3, 0.0)));
+	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
+	draw_plane(sh);
+	stack.pop();
+
+	// draw sphere
+	//stack.push();
+	//stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.5, 0.0)));
+	//stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.5, 0.5, 0.5)));
+	//draw_sphere(sh);
+	//stack.pop();
+
+	// draw pole
+	stack.push();
+	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.5, 0.0)));
+	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.1, 0.5, 0.1)));
+	glUniformMatrix4fv(sh["uT"], 1, GL_FALSE, &stack.m()[0][0]);
 	draw_sphere(sh);
+	//draw_cube(sh);
+	stack.pop();
+
+	// torus	
+	stack.push();
+	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(1.0, 0.5, 0.0)));
+	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.2, 0.2, 0.2)));
 	draw_torus(sh);
+	stack.pop();
+
 }
 
 void draw_full_screen_quad() {
@@ -240,6 +287,37 @@ void draw_texture(GLint tex_id ) {
 	glUseProgram(0);
 	glActiveTexture(at);
 }
+
+
+
+void blur_texture(GLint tex_id) {
+	GLint at;
+	glGetIntegerv(GL_ACTIVE_TEXTURE, &at);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, tex_id);
+	check_gl_errors(__LINE__, __FILE__, true);
+
+	glBindFramebuffer(GL_FRAMEBUFFER,fbo_blur.id_fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fbo_blur.id_tex, 0);
+	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+	glUseProgram(blur_shader.pr);
+	glUniform2f(blur_shader["uBlur"], 0.0,1.f / fbo_blur.h);
+	glUniform1i(blur_shader["uTexture"], 3);
+	draw_full_screen_quad();
+	check_gl_errors(__LINE__, __FILE__, true);
+
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_id, 0);
+	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);	
+	glBindTexture(GL_TEXTURE_2D, fbo_blur.id_tex);
+	glUniform2f(blur_shader["uBlur"], 1.f / fbo_blur.w, 0.0);
+	draw_full_screen_quad();
+	check_gl_errors(__LINE__, __FILE__, true);
+
+	glUseProgram(0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glActiveTexture(at);
+}
+
 int main(void)
 {
 	GLFWwindow* window;
@@ -277,47 +355,15 @@ int main(void)
 	printout_opengl_glsl_info();
 
 	check_gl_errors(__LINE__, __FILE__, true);
+
 	/* load the shaders */
 	std::string shaders_path = "../../src/code_13_shadows/shaders/";
 	depth_shader.create_program((shaders_path+"depthmap.vert").c_str(), (shaders_path+"depthmap.frag").c_str());
-	depth_shader.bind("uLightMatrix");
-	depth_shader.bind("uT");
-	depth_shader.bind("uRenderMode");
-
-	check_shader(depth_shader.vs);
-	check_shader(depth_shader.fs);
-	validate_shader_program(depth_shader.pr);
-
 	shadow_shader.create_program((shaders_path + "shadow_mapping.vert").c_str(), (shaders_path + "shadow_mapping.frag").c_str());
-	shadow_shader.bind("uP");
-	shadow_shader.bind("uV");
-	shadow_shader.bind("uT");
-	shadow_shader.bind("uLightMatrix");
-	shadow_shader.bind("uBias");
-	shadow_shader.bind("uRenderMode");
-
-	check_shader(shadow_shader.vs);
-	check_shader(shadow_shader.fs);
-	validate_shader_program(shadow_shader.pr);
-	check_gl_errors(__LINE__, __FILE__, true);
-
 	fsq_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "fsq.frag").c_str());
-	shadow_shader.bind("uTexture");
-
-	check_shader(fsq_shader.vs);
-	check_shader(fsq_shader.fs);
-	validate_shader_program(fsq_shader.pr);
-	check_gl_errors(__LINE__, __FILE__, true);
-
 	flat_shader.create_program((shaders_path + "flat.vert").c_str(), (shaders_path + "flat.frag").c_str());
-	flat_shader.bind("uP");
-	flat_shader.bind("uV");
-	flat_shader.bind("uT");
-	flat_shader.bind("uColor");
-	check_shader(flat_shader.vs);
-	check_shader(flat_shader.fs);
-	validate_shader_program(flat_shader.pr);
-	check_gl_errors(__LINE__, __FILE__, true);
+	blur_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "blur.frag").c_str());
+
 	/* Set the uT matrix to Identity */
 	glUseProgram(depth_shader.pr);
 	glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
@@ -346,7 +392,11 @@ int main(void)
 	s_torus.to_renderable(r_torus);
 	check_gl_errors(__LINE__, __FILE__, true);
 	/* create a torus */
-	r_cube = shape_maker::cube();
+	shape s_cube;
+	shape_maker::cube(s_cube);
+	s_cube.compute_edge_indices_from_indices();
+	s_cube.to_renderable(r_cube);
+
 
 	/* create a sphere */
 	r_sphere = shape_maker::sphere();
@@ -362,11 +412,11 @@ int main(void)
 	Lproj.sm_size_x = 512;
 	Lproj.sm_size_y = 512;
 	depth_bias = 0;
-	distance_light = 2.0;
+	distance_light = 2;
 	Lproj.view_matrix = glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f));
-	Lproj.tex.load("../../models/textures/batman.png",0);
+	Lproj.tex.load("../../models/textures/batman_512.png",0);
  	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
- 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	check_gl_errors(__LINE__, __FILE__, true);
 
 	/* Transformation to setup the point of view on the scene */
@@ -374,8 +424,6 @@ int main(void)
 	view = glm::lookAt(glm::vec3(0, 3, 4.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 
 	glUseProgram(depth_shader.pr);
-	Lproj.view_matrix = glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f));
-	Lproj.set_projection(Lproj.view_matrix, box3(2.f));
 	glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
 	glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &glm::mat4(1.f)[0][0]);
 	glUseProgram(0);
@@ -385,6 +433,8 @@ int main(void)
 	glUniformMatrix4fv(shadow_shader["uP"], 1, GL_FALSE, &proj[0][0]);
 	glUniformMatrix4fv(shadow_shader["uV"], 1, GL_FALSE, &view[0][0]);
 	glUniformMatrix4fv(shadow_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
+	glUniform1i(shadow_shader["uShadowMap"], 0);
+	glUniform2i(shadow_shader["uShadowMapSize"], Lproj.sm_size_x, Lproj.sm_size_y);
 	glUseProgram(0);
 	check_gl_errors(__LINE__, __FILE__, true);
 
@@ -409,13 +459,14 @@ int main(void)
 	
 	check_gl_errors(__LINE__, __FILE__, true);
 	fbo.create(Lproj.sm_size_x, Lproj.sm_size_y,true);
-	
+	fbo_blur.create(Lproj.sm_size_x, Lproj.sm_size_y, true);
+
 
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
 	{
 		/* Render here */
-		glClearColor(0.5, 0.5, 0.5, 1.0);
+		glClearColor(1.0, 1.0, 1.0, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 		ImGui_ImplOpenGL3_NewFrame();
@@ -423,53 +474,61 @@ int main(void)
 		ImGui::NewFrame();
 		gui_setup();
 
+		Ldir = glm::vec4(0.f, 1.f, 0.f,0.f);
 		/* rotate the view accordingly to view_rot*/
 		glm::mat4 curr_view = view_man.apply_to_view(view);
 
 		/* light direction transformed by the trackball tb[1]*/
 		glm::vec4 curr_Ldir = tb[1].matrix()*Ldir;
 
+check_gl_errors(__LINE__, __FILE__);
+
+
+
 		stack.push();
 		stack.mult(tb[0].matrix());
 
-
-	 	glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
 		glViewport(0, 0, Lproj.sm_size_x, Lproj.sm_size_y);
-		glClearDepth(1.0);
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
 		glUseProgram(depth_shader.pr);
-		Lproj.view_matrix = glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f)) *inverse(tb[1].matrix());
-		Lproj.set_projection(Lproj.view_matrix, box3(2.f));
- 		glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
+
+		Lproj.view_matrix = glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f))*inverse(tb[1].matrix());
+		Lproj.set_projection(Lproj.view_matrix, box3(2.0));
+
+		glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
 		glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		 
-		if (selected == 4) {
+
+
+		if (selected == 4 || selected == 5) {
 			glEnable(GL_CULL_FACE);
 			glCullFace(GL_FRONT);
 		}
 
 		draw_scene(depth_shader);
+
 		glCullFace(GL_BACK);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glBindFramebuffer(GL_FRAMEBUFFER,0);
 
-		//draw_texture(fbo.id_tex);
-		
+		if (selected == 6) {
+			blur_texture(fbo.id_tex);
+		}
+
 		glViewport(0, 0, 1000, 800);
-
 
 		glUseProgram(shadow_shader.pr);
 		glUniformMatrix4fv(shadow_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
 		glUniformMatrix4fv(shadow_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
 		glUniformMatrix4fv(shadow_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		glUniform1fv(shadow_shader["uBias"], 1,&depth_bias);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, fbo.id_depth);
-		glUniform1i(shadow_shader["uTexture"], 0);
-
+		glUniform1fv(shadow_shader["uBias"],1, &depth_bias);
+		glUniform2i(shadow_shader["uShadowMapSize"], Lproj.sm_size_x, Lproj.sm_size_y );
 		glUniform1i(shadow_shader["uRenderMode"], selected);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, fbo.id_tex);
 
 		draw_scene(shadow_shader);
+
 		// render the reference frame
 		glUseProgram(flat_shader.pr);
 		glUniformMatrix4fv(flat_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
@@ -480,27 +539,56 @@ int main(void)
 		glDrawArrays(GL_LINES, 0, 6);
 		glUseProgram(0);
 
-		check_gl_errors( __LINE__,__FILE__,true);
+		check_gl_errors(__LINE__, __FILE__, true);
 		stack.pop();
+
+
+		r_cube.bind();
+		stack.push();
+		stack.mult(inverse(Lproj.light_matrix()));
+		glUseProgram(flat_shader.pr);
+		glUniform3f(flat_shader["uColor"], 0.0, 0.0, 1.0);
+		glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.inds[1].ind);
+		glDrawElements(r_cube.inds[1].elem_type, r_cube.inds[1].count,GL_UNSIGNED_INT, 0);
+		stack.pop();
+
+
 
 		// render the light direction
 		stack.push();
 		stack.mult(tb[1].matrix());
-		 
+
 		glUseProgram(flat_shader.pr);
 		glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		glUniform3f(flat_shader["uColor"], 1.0,1.0,1.0);
+		glUniform3f(flat_shader["uColor"], 1.0, 1.0, 1.0);
 		r_line.bind();
 		glDrawArrays(GL_LINES, 0, 2);
 		glUseProgram(0);
-
+swapbuffers:
 		stack.pop();
+
+		// glDisable(GL_DEPTH_TEST);
+		// glViewport(0, 0, 512, 512);
+	  	//	blur_texture(Lproj.tex.id);
+		// draw_texture(Lproj.tex.id);
+		//glEnable(GL_DEPTH_TEST);
+		// draw_texture(fbo.id_tex);
 
 
 		check_gl_errors(__LINE__, __FILE__);
-	
+
+
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+		// show the shadow map 
+		//glViewport(0, 0, 200, 200);
+		//glDisable(GL_DEPTH_TEST);
+		//draw_texture(fbo.id_tex);
+		//glEnable(GL_DEPTH_TEST);
+		//glViewport(0, 0, 1000, 800);
+
 
 
 		/* Swap front and back buffers */
