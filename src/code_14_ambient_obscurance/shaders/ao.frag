@@ -6,6 +6,7 @@ in vec2 vTexCoord;
 uniform sampler2D uDepthMap;
 uniform float uRadius;
 uniform float  uDepthScale;
+uniform vec2 uSize;
 
 vec3 hash32(vec2 p)
 {
@@ -32,11 +33,11 @@ void main(void)
 		vec3 sample;// = center + h*uRadius/512.0;
 		for(int i=0; i < n_samples; ++i)
 			{
-				sample  = center + h*vec3(uRadius*vec2(1.f/512.f),uDepthScale);
+				sample  = center + h*vec3(uRadius*vec2(1.f/uSize.x),uDepthScale);
 				float z = texture2D(uDepthMap,sample.xy).x;
 				if( test_sample(sample))
 					ao+=1.0 / float(n_samples);
-				h = hash32(h.xy*vec2(512.0,512.0));
+				h = hash32(h.xy*vec2(uSize.x,uSize.y));
 			}	
 		ao =clamp(ao*2.0,0.0,1.0);
 	}

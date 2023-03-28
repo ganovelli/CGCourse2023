@@ -65,7 +65,7 @@ std::vector<renderable> r_knife;
 
 
 /* program shaders used */
-shader ao_shader, g_buffer_shader,depth_shader/*,shadow_shader*/,flat_shader,fsq_shader,blur_shader;
+shader ao_shader, g_buffer_shader,final_shader/*,depth_shader,shadow_shader*/,flat_shader,fsq_shader,blur_shader;
 
 /* implementation of view controller */
 
@@ -125,29 +125,19 @@ void print_info() {
 
 
 
-static int selected = 0;
-static bool use_plane_approx;
+static bool use_ao = 0;
 
 void gui_setup() {
 	ImGui::BeginMainMenuBar();
 
-	if (ImGui::BeginMenu("Shadow mode"))
-	{
-	 if (ImGui::Selectable("none", selected == 0)) selected = 0;
-	 if (ImGui::Selectable("Basic shadow mapping", selected == 1)) selected = 1;
-	 if (ImGui::Selectable("bias", selected == 2)) selected = 2;
-	 if (ImGui::Selectable("slope bias", selected == 3)) selected = 3;
-	 if (ImGui::Selectable("back faces", selected == 4)) selected = 4;
-	 if (ImGui::Selectable("PCF", selected == 5)) selected = 5;
-	 if (ImGui::Selectable("Variance SM", selected == 6)) selected = 6;
-	 ImGui::EndMenu();
-	}
+
 	if (ImGui::BeginMenu("parameters"))
 	{
 		bool redo_fbo = false;
 		const char* items[] = { "32","64","128","256","512", "1024", "2048", "4096"};
 		static int item_current = 1;
 		int xi, yi;
+		ImGui::Checkbox("use AO", &use_ao);
 		if (ImGui::ListBox("sm width", &xi, items, IM_ARRAYSIZE(items), 8))
 			if (g_buffer_size_x != 1 << (5 + xi)) {
 				g_buffer_size_x = 1 << (5 + xi);
@@ -158,7 +148,6 @@ void gui_setup() {
 				g_buffer_size_y = 1 << (5 + yi);
 				redo_fbo = true;
 			}
-		ImGui::Checkbox("use plane approx", &use_plane_approx);
 		if (redo_fbo) {
 			fbo.remove();
 			fbo.create(g_buffer_size_x, g_buffer_size_y,true);
@@ -321,23 +310,14 @@ int main(void)
 
 	/* load the shaders */
 	std::string shaders_path = "../../src/code_14_ambient_obscurance/shaders/";
-	depth_shader.create_program((shaders_path+"depthmap.vert").c_str(), (shaders_path+"depthmap.frag").c_str());
 	ao_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "ao.frag").c_str());
 	g_buffer_shader.create_program((shaders_path + "g_buffer.vert").c_str(), (shaders_path + "g_buffer.frag").c_str());
-	//	shadow_shader.create_program((shaders_path + "shadow_mapping.vert").c_str(), (shaders_path + "shadow_mapping.frag").c_str());
+	final_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "final.frag").c_str());
+
 	fsq_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "fsq.frag").c_str());
 	flat_shader.create_program((shaders_path + "flat.vert").c_str(), (shaders_path + "flat.frag").c_str());
 	blur_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "blur.frag").c_str());
 
-	/* Set the uT matrix to Identity */
-	glUseProgram(depth_shader.pr);
-	glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
-	glUseProgram(g_buffer_shader.pr);
-	glUniformMatrix4fv(g_buffer_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
-	glUseProgram(flat_shader.pr);
-	glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &glm::mat4(1.0)[0][0]);
-	glUseProgram(0);
-	check_gl_errors(__LINE__, __FILE__, true);
 	/* create a  long line*/
 	r_line = shape_maker::line(100.f);
 
@@ -451,6 +431,8 @@ int main(void)
 
 
   	 	glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
+		GLenum bufferlist[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+		glDrawBuffers(2, bufferlist);
  		glViewport(0, 0, g_buffer_size_x, g_buffer_size_y);
 //		glViewport(0, 0, 1000, 800);
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
@@ -461,10 +443,11 @@ int main(void)
 
 		draw_scene(g_buffer_shader);
 		check_gl_errors(__LINE__, __FILE__, true);
-
-//goto swapbuffers;
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+//		draw_texture(fbo.id_tex1);
+//goto swapbuffers;
+//		glDrawBuffers(1, bufferlist);
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo_ao.id_fbo);
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 		glUseProgram(ao_shader.pr);
@@ -473,25 +456,34 @@ int main(void)
 		glUniform1i(ao_shader["uDepthMap"], 0);
 		glUniform1f(ao_shader["uRadius"], radius);
 		glUniform1f(ao_shader["uDepthScale"], depthscale);
+		glUniform2f(ao_shader["uSize"], g_buffer_size_x, g_buffer_size_y);
+
 		draw_full_screen_quad();
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		blur_texture(fbo_ao.id_tex);
 
 		glViewport(0, 0, 1000, 800);
-		draw_texture(fbo_ao.id_tex);
+
+	//	draw_texture(fbo_ao.id_tex);
+
 
 //		glViewport(0, 0, 1000, 800);
-//		glUseProgram(ao_shader.pr);
-////		glUniformMatrix4fv(ao_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
-//		glUniformMatrix4fv(ao_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
-//		glUniformMatrix4fv(ao_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-//		glUniform2i(ao_shader["uShadowMapSize"], g_buffer_size_x, g_buffer_size_y);
-//		glActiveTexture(GL_TEXTURE0);
-//		glBindTexture(GL_TEXTURE_2D, fbo.id_tex);
-//		glUniform1i(ao_shader["uRenderMode"], selected);
-//		glUniformMatrix4fv(ao_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-//		draw_scene(ao_shader);
+		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+ 		glUseProgram(final_shader.pr);
+		glUniform1i(final_shader["uUseAO"], use_ao);
+		glUniform1i(final_shader["uNormalMap"], 0);
+		glUniform1i(final_shader["uAOMap"], 1);
+		glActiveTexture(GL_TEXTURE0);
+ 		glBindTexture(GL_TEXTURE_2D, fbo.id_tex1);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, fbo_ao.id_tex);
+
+		glm::vec4 LVS = curr_view*curr_Ldir;
+		glUniform3f(final_shader["uLVS"], LVS.x, LVS.y, LVS.z);
+
+ 		draw_full_screen_quad();
+
 
 		// render the reference frame
 		glUseProgram(flat_shader.pr);
