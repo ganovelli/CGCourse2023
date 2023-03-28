@@ -49,7 +49,7 @@ struct frame_buffer_object {
 
 		/* texture for color attachment 1*/
 		glGenTextures(1, &this->id_tex1);
-		glBindTexture(GL_TEXTURE_2D, this->id_tex);
+		glBindTexture(GL_TEXTURE_2D, this->id_tex1);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
