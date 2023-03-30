@@ -3,6 +3,7 @@
 #include <string>
 #include <iostream>
 #include <algorithm>
+#include <random>
 #include <conio.h>
 #include <direct.h>
 #include <imgui.h>
@@ -157,8 +158,8 @@ void gui_setup() {
 			fbo_blur.create(g_buffer_size_x, g_buffer_size_y, true);
 		}
 		 
-		ImGui::SliderFloat("radius", &radius,0.0,10.0);
-		ImGui::SliderFloat("depthscale", &depthscale, 0.0, 0.3);
+		ImGui::SliderFloat("radius", &radius,0.0,50.f);
+		ImGui::SliderFloat("depthscale", &depthscale, 0.001, 0.1);
 		ImGui::EndMenu();
 	}
 
@@ -219,7 +220,7 @@ void draw_scene(  shader & sh) {
 	r_knife[0].bind();
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_knife[0].inds[0].ind);
 	glDrawElements(r_knife[0].inds[0].elem_type, r_knife[0].inds[0].count, GL_UNSIGNED_INT, 0);
-	stack.pop();
+	stack.pop(); 
 
 }
 
@@ -240,7 +241,55 @@ void draw_texture(GLint tex_id ) {
 	glActiveTexture(at);
 }
 
+void ssaoKernel() {
+	std::uniform_real_distribution<float> randomFloats(0.0, 1.0); // random floats between [0.0, 1.0]
+	std::default_random_engine generator;
+	std::vector<glm::vec3> ssaoKernel;
+	std::vector<float> _;
+	srand(clock());
+	for (unsigned int i = 0; i < 64; ++i)
+	{
+		glm::vec3 sample(
+			randomFloats(generator) * 2.0 - 1.0,
+			randomFloats(generator) * 2.0 - 1.0,
+			randomFloats(generator) * 2.0 - 1.0
+		);
+		sample = glm::normalize(sample);
+		sample *= randomFloats(generator);
+		ssaoKernel.push_back(sample);
+		_.push_back(sample.x);
+		_.push_back(sample.y);
+		_.push_back(sample.z);
+	}
 
+	std::vector<glm::vec3> ssaoNoise;
+	for (unsigned int i = 0; i < 16; i++)
+	{
+		glm::vec3 noise(
+			randomFloats(generator) * 2.0 - 1.0,
+			randomFloats(generator) * 2.0 - 1.0,
+			0.0f);
+		ssaoNoise.push_back(noise);
+	}
+
+	unsigned int noiseTexture;
+	glGenTextures(1, &noiseTexture);
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, noiseTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 4, 4, 0, GL_RGB, GL_FLOAT, &ssaoNoise[0]);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+	glUseProgram(ao_shader.pr);
+	ao_shader.bind("uSamples");
+	ao_shader.bind("uNoise");
+	glUniform3fv(ao_shader["uSamples"], ssaoKernel.size(), &_[0]);
+	glUniform1i(ao_shader["uNoise"], 4);
+	glUseProgram(0);
+	glActiveTexture(GL_TEXTURE0);
+}
 
 void blur_texture(GLint tex_id) {
 	GLint at;
@@ -311,6 +360,7 @@ int main(void)
 	/* load the shaders */
 	std::string shaders_path = "../../src/code_14_ambient_obscurance/shaders/";
 	ao_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "ao.frag").c_str());
+	ssaoKernel();
 	g_buffer_shader.create_program((shaders_path + "g_buffer.vert").c_str(), (shaders_path + "g_buffer.frag").c_str());
 	final_shader.create_program((shaders_path + "fsq.vert").c_str(), (shaders_path + "final.frag").c_str());
 
@@ -346,7 +396,7 @@ int main(void)
 	std::string models_path = "../../models/knife";
 	_chdir(models_path.c_str());
 
-	load_obj(r_knife, "knife_50k.obj");
+ 	load_obj(r_knife, "knife_50k.obj");
 
 	/* create a sphere */
 	r_sphere = shape_maker::sphere();
@@ -364,21 +414,15 @@ int main(void)
 	check_gl_errors(__LINE__, __FILE__, true);
 
 	/* Transformation to setup the point of view on the scene */
-	proj = glm::frustum(-1.f, 1.f, -0.8f, 0.8f, 2.f,100.f);
+	proj = glm::frustum(-1.f, 1.f, -0.8f, 0.8f, 2.f,15.f);
 	view = glm::lookAt(glm::vec3(0, 3, 4.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+	view = glm::lookAt(glm::vec3(0, 0, 7.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 
 	glUseProgram(g_buffer_shader.pr);
 	glUniformMatrix4fv(g_buffer_shader["uP"], 1, GL_FALSE, &proj[0][0]);
 	glUniformMatrix4fv(g_buffer_shader["uV"], 1, GL_FALSE, &view[0][0]);
 	glUseProgram(0);
 
-	//glUseProgram(shadow_shader.pr);
-	//glUniformMatrix4fv(shadow_shader["uP"], 1, GL_FALSE, &proj[0][0]);
-	//glUniformMatrix4fv(shadow_shader["uV"], 1, GL_FALSE, &view[0][0]);
-	//glUniformMatrix4fv(shadow_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
-	//glUniform1i(shadow_shader["uShadowMap"], 0);
-	//glUniform2i(shadow_shader["uShadowMapSize"], g_buffer_size_x, g_buffer_size_y);
-	//glUseProgram(0);
 	check_gl_errors(__LINE__, __FILE__, true);
 
 	glUseProgram(flat_shader.pr);
@@ -429,8 +473,12 @@ int main(void)
 		stack.push();
 		stack.mult(tb[0].matrix());
 
-
   	 	glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
+
+		glBindTexture(GL_TEXTURE_2D, fbo.id_tex);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, g_buffer_size_x, g_buffer_size_y, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
 		GLenum bufferlist[] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
 		glDrawBuffers(2, bufferlist);
  		glViewport(0, 0, g_buffer_size_x, g_buffer_size_y);
@@ -453,20 +501,24 @@ int main(void)
 		glUseProgram(ao_shader.pr);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, fbo.id_tex);
+
 		glUniform1i(ao_shader["uDepthMap"], 0);
 		glUniform1f(ao_shader["uRadius"], radius);
 		glUniform1f(ao_shader["uDepthScale"], depthscale);
 		glUniform2f(ao_shader["uSize"], g_buffer_size_x, g_buffer_size_y);
+		glUniform2f(ao_shader["uRND"], 2.0,3.0);
 
 		draw_full_screen_quad();
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		blur_texture(fbo_ao.id_tex);
+		blur_texture(fbo_ao.id_tex);
+		blur_texture(fbo_ao.id_tex);
 
 		glViewport(0, 0, 1000, 800);
 
-	//	draw_texture(fbo_ao.id_tex);
-
+// draw_texture(fbo_ao.id_tex);
+// goto swapbuffers;
 
 //		glViewport(0, 0, 1000, 800);
 		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);

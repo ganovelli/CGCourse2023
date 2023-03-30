@@ -5,8 +5,11 @@ in vec2 vTexCoord;
 
 uniform sampler2D uDepthMap;
 uniform float uRadius;
-uniform float  uDepthScale;
+uniform float uDepthScale;
 uniform vec2 uSize;
+uniform vec2 uRND;
+uniform vec3 uSamples[64];
+uniform sampler2D uNoise;
 
 vec3 hash32(vec2 p)
 {
@@ -22,29 +25,28 @@ bool test_sample(vec3 sample){
 
 void main(void) 
 { 
-	int n_samples = 256;
+	int n_samples = 64;
 	float ao = 0.0;
-			
+	vec3 randomVec = texture(uNoise, vTexCoord * vec2(800.f) ).xyz; 
+				
 	vec3 center = vec3(vTexCoord,texture2D(uDepthMap,vTexCoord).x);
  	if(center.z>0.99 ){
  	ao=1.0;}
  	else{ 
-		vec3 h = hash32(gl_FragCoord.xy);
-		vec3 sample;// = center + h*uRadius/512.0;
+		vec3 sample;
 		for(int i=0; i < n_samples; ++i)
 			{
-				sample  = center + h*vec3(uRadius*vec2(1.f/uSize.x),uDepthScale);
-				float z = texture2D(uDepthMap,sample.xy).x;
-				if( test_sample(sample))
-					ao+=1.0 / float(n_samples);
-				h = hash32(h.xy*vec2(uSize.x,uSize.y));
+				sample = center + vec3(uSamples[i].x*uRadius/uSize.x,uSamples[i].y*uRadius/uSize.x,uSamples[i].z*uDepthScale);
+  				if( test_sample(sample))
+  					ao+=1.0 / float(n_samples);
 			}	
-		ao =clamp(ao*2.0,0.0,1.0);
+		ao =clamp(2.0*ao,0.0,1.0);
 	}
  	
 	color = vec4(vec3(ao) ,1.0);
 
-	
+//	color = vec4(uSamples[int(floor(gl_FragCoord.x/15.f))],1.0);
+//	color = vec4(randomVec,1.0);
 //		color =  vec4(gl_FragCoord.xyz/512.0,1.0);
 //		color = vec4(texture2D(uDepthMap,vTexCoord).xyz,1.0);
 //		color = vec4(hash32(gl_FragCoord.xy ) ,1.0);

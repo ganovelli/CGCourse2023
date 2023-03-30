@@ -141,7 +141,7 @@ void print_info() {
 
 
 static int selected = 0;
-static bool use_plane_approx;
+static float k_plane_approx;
 
 void gui_setup() {
 	ImGui::BeginMainMenuBar();
@@ -175,7 +175,7 @@ void gui_setup() {
 			}
 		if (ImGui::SliderFloat("distance", &distance_light, 2.f, 100.f)) 
 			Lproj.set_projection(glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f))*inverse(tb[1].matrix()), box3(1.0));
-		ImGui::Checkbox("use plane approx", &use_plane_approx);
+		ImGui::SliderFloat("  plane approx", &k_plane_approx,0.0,100.0);
 		if (redo_fbo) {
 			fbo.remove();
 			fbo.create(Lproj.sm_size_x, Lproj.sm_size_y,true);
@@ -258,8 +258,8 @@ void draw_scene(  shader & sh) {
 	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.5, 0.0)));
 	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.1, 0.5, 0.1)));
 	glUniformMatrix4fv(sh["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	draw_sphere(sh);
-	//draw_cube(sh);
+	//draw_sphere(sh);
+	draw_cube(sh);
 	stack.pop();
 
 	// torus	
@@ -481,12 +481,10 @@ int main(void)
 		/* light direction transformed by the trackball tb[1]*/
 		glm::vec4 curr_Ldir = tb[1].matrix()*Ldir;
 
-check_gl_errors(__LINE__, __FILE__);
-
-
-
 		stack.push();
 		stack.mult(tb[0].matrix());
+
+
 
 		glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
 		glViewport(0, 0, Lproj.sm_size_x, Lproj.sm_size_y);
@@ -499,6 +497,7 @@ check_gl_errors(__LINE__, __FILE__);
 
 		glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
 		glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
+		glUniform1f(depth_shader["uPlaneApprox"], k_plane_approx);
 
 
 		if (selected == 4 || selected == 5) {
