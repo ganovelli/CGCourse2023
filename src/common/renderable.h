@@ -12,7 +12,10 @@ struct box3
 	/// max coordinate point
 	glm::vec3 max;
 
-	/// The bounding box constructor
+	/// The bounding box constructor (make it of size s centered in 0^3
+	inline  box3(float s) { min =  glm::vec3(-s/2.f); max = glm::vec3(s / 2.f); }
+
+	/// The bounding box constructor (make it empty)
 	inline  box3() { min = glm::vec3(1.f); max = glm::vec3(-1.f); }
 
 	/// Min Max constructor

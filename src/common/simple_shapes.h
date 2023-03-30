@@ -321,6 +321,16 @@ struct shape_maker {
 			return res;
 	}
 
+	 static renderable quad(){
+		 shape s;
+		 renderable r;
+		 s.positions = {-1,-1,0,  1,-1,0, 1,1,0, -1,1,0 };
+		 s.indices   = { 0,1,2, 0,2,3 };
+		 s.vn = 4;
+		 s.fn = 2;
+		 s.to_renderable(r);
+		 return r;
+	 }
 
 	 static void rectangle(shape & s, unsigned int nX, unsigned int nY) {
 		
