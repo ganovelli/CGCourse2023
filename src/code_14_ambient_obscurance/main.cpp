@@ -61,7 +61,7 @@ matrix_stack stack;
 frame_buffer_object fbo, fbo_ao,fbo_blur;
 
 /* object that will be rendered in this scene*/
-renderable r_frame, r_plane,r_line,r_torus,r_cube, r_sphere,r_quad;
+renderable r_frame,r_quad,r_line;
 std::vector<renderable> r_knife;
 
 
@@ -127,11 +127,11 @@ void print_info() {
 
 
 static bool use_ao = 0;
-
+static int fps;
 void gui_setup() {
 	ImGui::BeginMainMenuBar();
 
-
+	ImGui::Text((std::string("FPS: ")+std::to_string(fps)).c_str());
 	if (ImGui::BeginMenu("parameters"))
 	{
 		bool redo_fbo = false;
@@ -173,44 +173,9 @@ void gui_setup() {
 	ImGui::EndMainMenuBar();
 }
 
-void draw_torus(  shader & sh) {
-	glUniformMatrix4fv(sh["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	r_torus.bind();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_torus.ind);
-	glDrawElements(GL_TRIANGLES, r_torus.in, GL_UNSIGNED_INT, 0);
-}
 
-void draw_plane(  shader & sh) {
-	glUniformMatrix4fv(sh["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	r_plane.bind();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_plane.ind);
-	glDrawElements(GL_TRIANGLES, r_plane.in, GL_UNSIGNED_INT, 0);
-}
-
-
-void draw_pole(shader & sh) {
-	r_sphere.bind();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_sphere.inds[0].ind);
-	glDrawElements(r_sphere.inds[0].elem_type, r_sphere.inds[0].count, GL_UNSIGNED_INT, 0);
-}
-
-void draw_sphere(  shader & sh) {
-	glUniformMatrix4fv(sh["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	r_sphere.bind();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_sphere.ind);
-	glDrawElements(GL_TRIANGLES, r_sphere.in, GL_UNSIGNED_INT, 0);
-}
-
-void draw_cube(shader & sh) {
-	glUniformMatrix4fv(sh["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	r_cube.bind();
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.ind);
-	glDrawElements(GL_TRIANGLES, r_cube.in, GL_UNSIGNED_INT, 0);
-}
 
 void draw_scene(  shader & sh) {
- //	draw_cube(sh);
-
  	stack.push();
 	float sf = 1.f / r_knife[0].bbox.diagonal();
 	glm::vec3 c = r_knife[0].bbox.center();
@@ -257,9 +222,6 @@ void ssaoKernel() {
 		sample = glm::normalize(sample);
 		sample *= randomFloats(generator);
 		ssaoKernel.push_back(sample);
-		_.push_back(sample.x);
-		_.push_back(sample.y);
-		_.push_back(sample.z);
 	}
 
 	std::vector<glm::vec3> ssaoNoise;
@@ -285,7 +247,7 @@ void ssaoKernel() {
 	glUseProgram(ao_shader.pr);
 	ao_shader.bind("uSamples");
 	ao_shader.bind("uNoise");
-	glUniform3fv(ao_shader["uSamples"], ssaoKernel.size(), &_[0]);
+	glUniform3fv(ao_shader["uSamples"], ssaoKernel.size(), &ssaoKernel[0].x);
 	glUniform1i(ao_shader["uNoise"], 4);
 	glUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
@@ -328,7 +290,9 @@ int main(void)
 		return -1;
 
 	/* Create a windowed mode window and its OpenGL context */
-	window = glfwCreateWindow(1000, 800, "code_13_shadows", NULL, NULL);
+	glfwWindowHint(GLFW_SAMPLES, 4);
+
+	window = glfwCreateWindow(1000, 800, "code_14_ambient_obscurance", NULL, NULL);
 	if (!window)
 	{
 		glfwTerminate();
@@ -347,6 +311,8 @@ int main(void)
 	glfwMakeContextCurrent(window);
 
 	glewInit();
+
+
 
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO();
@@ -374,32 +340,12 @@ int main(void)
 	/* create 3 lines showing the reference frame*/
 	r_frame = shape_maker::frame(4.0);
 	
-	/* create a rectangle*/
-	shape s_plane;
-	shape_maker::rectangle(s_plane, 1, 1);
-	s_plane.compute_tangent_space();
-	s_plane.to_renderable(r_plane);
-	check_gl_errors(__LINE__, __FILE__, true);
-	/* create a torus */
-	shape  s_torus;
-	shape_maker::torus(s_torus, 0.5, 2.0, 50, 50);
-	s_torus.compute_tangent_space();
-	s_torus.to_renderable(r_torus);
-	check_gl_errors(__LINE__, __FILE__, true);
-	/* create a torus */
-	shape s_cube;
-	shape_maker::cube(s_cube);
-	s_cube.compute_edge_indices_from_indices();
-	s_cube.to_renderable(r_cube);
-
+	
 	/* load the knife model */
 	std::string models_path = "../../models/knife";
 	_chdir(models_path.c_str());
 
  	load_obj(r_knife, "knife_50k.obj");
-
-	/* create a sphere */
-	r_sphere = shape_maker::sphere();
 
 	/* create a quad with size 2 centered to the origin and on the XY pane */
 	r_quad = shape_maker::quad();
@@ -453,8 +399,19 @@ int main(void)
 	texture ao_tex;
 	ao_tex.create(g_buffer_size_x, g_buffer_size_y,GL_RGB);
 	/* Loop until the user closes the window */
+	double last_time = glfwGetTime();
+	int n_frames = 0;
+
 	while (!glfwWindowShouldClose(window))
 	{
+		double current_time = glfwGetTime();
+		n_frames++;
+		if (current_time - last_time >= 1.0) { 
+			fps = n_frames;
+			n_frames = 0;
+			last_time += 1.0;
+		}
+
 		/* Render here */
 		glClearColor(1.0, 0.6, 0.7, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
