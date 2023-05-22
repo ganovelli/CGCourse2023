@@ -123,9 +123,12 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 			{
 				assert(shapes[is].mesh.indices[f].vertex_index >= 0);
 				assert(shapes[is].mesh.indices[f].vertex_index < pos_id.size());
-				assert(shapes[is].mesh.indices[f].normal_index >= 0);
-				assert(tn_id[shapes[is].mesh.indices[f].normal_index].first >= 0);
-				assert(tn_id[shapes[is].mesh.indices[f].normal_index].second >= 0);
+				if (!norms.empty()) {
+					assert(shapes[is].mesh.indices[f].normal_index >= 0);
+					assert(tn_id[shapes[is].mesh.indices[f].normal_index].first >= 0);
+				}
+				if(!t_coords.empty())
+					assert(tn_id[shapes[is].mesh.indices[f].texcoord_index].second >= 0);
 			}
 		}
 
@@ -134,14 +137,15 @@ static void load_obj(std::vector<renderable> & rs, std::string inputfile) {
 			v_pos.push_back(pos[pos_id[i] * 3 + 1]);
 			v_pos.push_back(pos[pos_id[i] * 3 + 2]);
 		}
+		if (!norms.empty())
+			for (unsigned int i = 0; i < pos_id.size(); ++i) {
+				v_norm.push_back(norms[tn_id[i].first * 3]);
+				v_norm.push_back(norms[tn_id[i].first * 3 + 1]);
+				v_norm.push_back(norms[tn_id[i].first * 3 + 2]);
+			}
 
-		for (unsigned int i = 0; i < pos_id.size(); ++i) {
-			v_norm.push_back(norms[tn_id[i].first * 3]);
-			v_norm.push_back(norms[tn_id[i].first * 3 + 1]);
-			v_norm.push_back(norms[tn_id[i].first * 3 + 2]);
-		}
-
-		for (unsigned int i = 0; i < pos_id.size(); ++i) {
+		if (!t_coords.empty())
+			for (unsigned int i = 0; i < pos_id.size(); ++i) {
 			v_tcoord.push_back(t_coords[tn_id[i].second * 2]);
 			v_tcoord.push_back(t_coords[tn_id[i].second * 2 + 1]);
 		}
