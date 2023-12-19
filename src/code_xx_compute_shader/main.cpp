@@ -110,6 +110,7 @@ std::string shaders_path = "../../src/code_XX_compute_shader/shaders/";
 
 unsigned int compute;
 GLint ID;
+int iTime_loc;
 void init_compute_shader() {
 
 	std::string source = shader::textFileRead((shaders_path+"compute_shader.comp").c_str());
@@ -124,7 +125,8 @@ void init_compute_shader() {
 	ID = glCreateProgram();
 	glAttachShader(ID, compute);
 	glLinkProgram(ID);
-
+	validate_shader_program(ID);
+	iTime_loc = glGetUniformLocation(ID, "iTime");
 
 }
 
@@ -141,7 +143,7 @@ int main(void)
 //	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
 	/* Create a windowed mode window and its OpenGL context */
-	window = glfwCreateWindow(1000, 800, "code_XX_compute_shader", NULL, NULL);
+	window = glfwCreateWindow(512, 512, "code_XX_compute_shader", NULL, NULL);
 	if (!window)
 	{
 		glfwTerminate();
@@ -175,7 +177,7 @@ int main(void)
 	check_gl_errors(__LINE__, __FILE__);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 	check_gl_errors(__LINE__, __FILE__);
-	validate_shader_program(ID);
+	
 	check_gl_errors(__LINE__, __FILE__);
 	/* load the shaders */
 
@@ -198,7 +200,7 @@ int main(void)
  
 	print_info();
 	/* define the viewport  */
-	glViewport(0, 0, 1000, 800);
+	glViewport(0, 0, 512, 512);
 
 	/* avoid rendering back faces */
 	// uncomment to see the plane disappear when rotating it
@@ -212,7 +214,10 @@ int main(void)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 		check_gl_errors(__LINE__, __FILE__);
-		
+		glUseProgram(ID);
+		glUniform1i(iTime_loc, 0*clock());
+		glDispatchCompute((unsigned int)TEXTURE_WIDTH, (unsigned int)TEXTURE_HEIGHT, 1);
+
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, texture);
 
