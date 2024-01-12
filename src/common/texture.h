@@ -1,8 +1,6 @@
 #pragma once
-#ifndef  STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-#endif
+
+
 
 struct texture {
 	texture() { }
@@ -38,7 +36,15 @@ struct texture {
 	GLuint create(int x_size, int y_size, GLuint channels) {
 		glGenTextures(1, &id);
 		glBindTexture(GL_TEXTURE_2D, id);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, x_size, y_size, 0, channels, GL_UNSIGNED_BYTE, NULL);
+		
+		GLint internalformat;
+		switch (channels) {
+		case 1: internalformat = GL_RED; break;
+		case 3: internalformat = GL_RGB; break;
+		case 4: internalformat = GL_RGBA; break;
+		default: assert(0);
+		}
+		glTexImage2D(GL_TEXTURE_2D, 0, internalformat, x_size, y_size, 0, channels, GL_UNSIGNED_BYTE, NULL);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

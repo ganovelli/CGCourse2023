@@ -66,7 +66,7 @@ struct shader{
 			// Tokenizing w.r.t. space ' '
 			while (getline(check1, intermediate, ';'))
 			{
-				std::regex_replace(intermediate, std::regex("  "), " ");
+				std::string _ = std::regex_replace(intermediate, std::regex("  "), " ");
 
 				if (intermediate.find(" ") == 0)
 					intermediate.erase(0, 1);

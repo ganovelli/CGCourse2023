@@ -5,6 +5,17 @@
 #include <algorithm>
 #include <conio.h>
 #include <direct.h>
+
+
+
+#define TINYGLTF_IMPLEMENTATION
+
+#include <stb_image.h>
+#include <stb_image_write.h>
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+
+#include "..\common\gltf_loader.h"
 #include "..\common\debugging.h"
 #include "..\common\renderable.h"
 #include "..\common\shaders.h"
@@ -12,8 +23,6 @@
 #include "..\common\matrix_stack.h"
 #include "..\common\intersection.h"
 #include "..\common\trackball.h"
-
-#include "..\common\gltf_loader.h"
 
 
 /*
@@ -43,6 +52,8 @@ renderable  r_plane;
 
 /* program shaders used */
 shader tex_shader;
+
+gltf_model model;
 
 
 void draw_line(glm::vec4 l) {
@@ -87,8 +98,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 }
 void print_info() {
 }
-unsigned int texture;
-unsigned int inputmesh;
+unsigned int texture, inputmeshPos,inputmeshId;
 const unsigned int TEXTURE_WIDTH = 1024, TEXTURE_HEIGHT = 1024;
 void create_image() {
 	// texture size
@@ -106,29 +116,44 @@ void create_image() {
 
 	check_gl_errors(__LINE__, __FILE__);
 	
-	glGenTextures(1, &inputmesh);
+	glGenTextures(1, &inputmeshPos);
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, inputmesh);
+	glBindTexture(GL_TEXTURE_2D, inputmeshPos);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	 
-	float triangle[12] = { 0.0,0.0,-3.0,0, 1.0,0.0,-3.0,0, 0.0,0.5,-3.0 ,0};
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 12, 1, 0, GL_RGBA,GL_FLOAT, triangle);
+	float triangle[16] = { 0.0,0.0,-3.0,0, 1.0,0.0,-3.0,0, 0.0,0.5,-3.0 ,0,
+						1.0,0.5,-3.0,0};
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 16, 1, 0, GL_RGBA,GL_FLOAT, triangle);
 	 
-	glBindImageTexture(1, inputmesh, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
+	glBindImageTexture(1, inputmeshPos, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32F);
 	 
+
+	glGenTextures(1, &inputmeshId);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, inputmeshId);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	int triangleId[8] = { 0,1,2,0,1,2,3,0 };
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32I, 2, 1, 0, GL_RGBA_INTEGER, GL_INT, triangleId);
+	check_gl_errors(__LINE__, __FILE__);
+	glBindImageTexture(3, inputmeshId, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32I);
+	check_gl_errors(__LINE__, __FILE__);
 }
 
 std::string shaders_path = "../../src/code_XX_compute_shader/shaders/";
 
 unsigned int compute;
 GLint ID;
-int iTime_loc;
+int iTime_loc, uWidth_loc, uNTriangles_loc, uBbox_loc;
 void init_compute_shader() {
 
-	std::string source = shader::textFileRead((shaders_path + "compute_shader.comp").c_str());
+	std::string source = shader::textFileRead((shaders_path + "raytracing_octree.comp").c_str());
 	// compute shader
 	const GLchar* d = source.c_str();
 	compute = glCreateShader(GL_COMPUTE_SHADER);
@@ -142,10 +167,13 @@ void init_compute_shader() {
 	glLinkProgram(ID);
 	validate_shader_program(ID);
 	iTime_loc = glGetUniformLocation(ID, "iTime");
+	uWidth_loc = glGetUniformLocation(ID, "uWidth");
+	uNTriangles_loc = glGetUniformLocation(ID, "uNTriangles");
+	uBbox_loc = glGetUniformLocation(ID, "uBbox");
 }
 
 
-int main(void)
+int main(int argc, char ** argv)
 {
 	GLFWwindow* window;
 
@@ -180,18 +208,23 @@ int main(void)
 	printout_opengl_glsl_info();
 
 
-	create_image();
+
 	check_gl_errors(__LINE__, __FILE__);
 	init_compute_shader();
 	check_gl_errors(__LINE__, __FILE__);
 
+	create_image();
+	
+	model.load(argv[1]);
+	model.create_buffers();
+
 	glUseProgram(ID);
 	glUniform1i(iTime_loc, 0 * clock());
-	check_gl_errors(__LINE__, __FILE__);
+	glUniform1i(uWidth_loc, 2048);
+	glUniform1i(uNTriangles_loc, std::max(model.n_tri, 2) );
 	glDispatchCompute((unsigned int)TEXTURE_WIDTH, (unsigned int)TEXTURE_HEIGHT, 1);
-	check_gl_errors(__LINE__, __FILE__);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-	check_gl_errors(__LINE__, __FILE__);
+	 
 
 	check_gl_errors(__LINE__, __FILE__);
 	/* load the shaders */
