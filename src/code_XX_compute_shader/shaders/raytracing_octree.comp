@@ -1,0 +1,563 @@
+#version 460 core
+
+#define lsx 10
+#define lsy 10
+#define lsz 1
+
+layout (local_size_x = lsx, local_size_y = lsy, local_size_z = lsz) in;
+layout(rgba32f, binding = 0) uniform image2D imgOutput;
+layout(rgba32f, binding = 1) uniform image2D imgInputPos;
+layout(rgba32f, binding = 2) uniform image2D imgInputNor;
+layout(rgba32i, binding = 3) uniform iimage2D imgInputId;
+layout(rgba32i, binding = 4) uniform iimage2D imgInputOctree;
+
+
+uniform int iTime;
+uniform int uWidth;
+uniform int uNTriangles;
+uniform vec4 uBbox;
+
+#define MAX_BOUNCES 1
+#define LAMBERTIAN 0
+#define EMISSIVE 1
+#define METAL 2
+#define DIELECTRIC 3
+
+vec3 background_color;
+
+ivec2 iResolution;
+vec4 p0,p1,p2;
+
+ivec2 id2tc(int id){
+    return ivec2(id%uWidth,id/uWidth);
+}
+
+
+uint base_hash(uvec2 p) {
+    p = 1103515245U*((p >> 1U)^(p.yx));
+    uint h32 = 1103515245U*((p.x)^(p.y>>3U));
+    return h32^(h32 >> 16);
+}
+
+float g_seed = 0.;
+
+vec2 hash2(inout float seed) {
+    uint n = base_hash(floatBitsToUint(vec2(seed+=.1,seed+=.1)));
+    uvec2 rz = uvec2(n, n*48271U);
+    return vec2(rz.xy & uvec2(0x7fffffffU))/float(0x7fffffff);
+}
+
+vec3 hash3(inout float seed) {
+    uint n = base_hash(floatBitsToUint(vec2(seed+=.1,seed+=.1)));
+    uvec3 rz = uvec3(n, n*16807U, n*48271U);
+    return vec3(rz & uvec3(0x7fffffffU))/float(0x7fffffff);
+}
+
+vec3 random_in_unit_sphere(inout float seed) {
+    vec3 h = hash3(seed) * vec3(2.,6.28318530718,1.)-vec3(1,0,0);
+    float phi = h.y;
+    float r = pow(h.z, 1./3.);
+	return r * vec3(sqrt(1.-h.x*h.x)*vec2(sin(phi),cos(phi)),h.x);
+}
+/* geometric entities */
+
+struct Material{
+    vec3 albedo;
+    int type; // 0: Lambertian, 1: metal, 2: dielectric, 3: emissive
+};
+
+// sphere
+struct Sphere{
+    vec3  center;
+    float radius;
+    Material mat;
+};
+
+// a quad defined on plane XY of frame "frame", 
+// centered in 0,0,0 with size size.x and size.y
+struct Quad{
+    mat3 axes;
+    vec3 pos;
+    vec2 size;
+    Material mat;
+};
+
+mat3 create_axes(in vec3 x_axis, in vec3 norm){
+    mat3 axes;
+    axes[0] = normalize(x_axis);
+    vec3 y_axis = normalize(cross(norm,axes[0]));
+    vec3 z_axis = normalize(cross(axes[0],y_axis));
+
+    axes[1] = y_axis;
+    axes[2] = z_axis;
+    axes = transpose(axes);
+    return axes;
+}
+
+vec3 pos_in_quad(in Quad q){
+    vec2 p_quad_frame =  hash2(g_seed);
+    p_quad_frame*= q.size;
+    p_quad_frame-= q.size*0.5;
+    
+    return transpose(q.axes)*vec3(p_quad_frame,0.0)+q.pos;
+}
+
+
+struct hit_info {
+    float t;
+    vec3 point, normal;
+    Material mat;
+};
+
+
+/* Lights */
+vec3 point_light = vec3(0.5,0.5,0.5);
+Quad area_light;
+
+/* geometry */
+Sphere sphereA = Sphere( vec3(0.0,0.0,-4.0) , 0.5 ,Material(vec3(0.7,0.7,0.9),0) );
+Sphere sphereB = Sphere( vec3(0.5,-0.5,-3.0) , 0.2 ,Material(vec3(0.4,0.3,0.7),0) );
+Quad   quadL,quadR,quadT,quadB; 
+
+
+struct Ray{
+    vec3 pos;
+    vec3 dir; // unitary!
+};
+
+/* intersection tests */
+
+// very naive ray-triangle intersection
+// It also compute barycentric coordinates (without returning them...)
+bool intersect_triangle( in Ray r, in vec3 p0, in vec3 p1, in vec3 p2, out hit_info nfo ){
+
+    // ray triangle-plane intersection
+    vec3 triangle_normal = cross(p1-p0,p2-p0);
+    triangle_normal = triangle_normal / length(triangle_normal);
+    float den = dot(r.dir,triangle_normal);
+    if(abs(den) <  0.0001 ) 
+        return false; // ray parallel to the plane
+
+    float t = -dot(r.pos-p0,triangle_normal)/den;
+
+    if(t<0)
+        return false;
+
+    vec3 p = r.pos+t*r.dir;
+
+ 
+    vec3 v10 = p1 - p0;
+    vec3 v20 = p2 - p0;
+  
+    float area2 = length(cross(v10,v20));
+
+    vec3 a0 =  (cross(p2-p1,p-p1))  / area2;
+    float alpha_0 = length(a0);
+    if(alpha_0 > 1 ) return false;
+
+
+    vec3 a1 =  (cross(p-p0,v20)  )  /area2;
+    float alpha_1 = length(a1);
+    if(alpha_1 > 1 ) return false;
+
+    vec3 a2 =  (cross(v10,p-p0)  )  /area2;
+    float alpha_2 = length(a2);
+    if(alpha_2 > 1 ) return false;
+
+
+    nfo.point = p;
+    nfo.normal  = triangle_normal;
+    nfo.mat.albedo = vec3( 0.6,0.5,0.4 );
+    nfo.mat.type = LAMBERTIAN;
+    nfo.t = t;
+
+    return   dot(a0,triangle_normal)>0    &&   dot(a1,triangle_normal)>0  && dot(a2,triangle_normal)>0  ;
+}
+
+bool intersect_sphere( in Ray r, in Sphere s,out hit_info nfo){
+  float b = 2.0*dot( r.dir, r.pos-s.center);
+  float c = dot( r.pos-s.center,r.pos-s.center)
+            - s.radius*s.radius;
+  // solve for k*k + b*k + c = 0
+  float delta = b*b-4.0*c;
+  if (delta<0.0) return false;
+  float k = (-b -sqrt(delta)) / 2.0;
+  float k1 = (-b +sqrt(delta)) / 2.0;
+  if (max(k,k1)<0.0) return false; 
+  
+  nfo.point = r.pos+k*r.dir;
+  nfo.normal  = normalize(nfo.point-s.center);
+  nfo.mat.albedo = s.mat.albedo;
+
+  nfo.mat.type = s.mat.type;
+  nfo.t = k;
+  return true;
+}
+
+bool intersect_quad( in Ray r, in Quad q,out hit_info nfo){
+
+    vec3 pos_frame  = (q.axes * r.pos - q.axes*q.pos);
+    vec3 dir_frame = q.axes * r.dir; 
+    
+    if( abs(dir_frame.z) < 0.001)
+        return false;
+    
+    float t = - pos_frame.z / dir_frame.z;
+    
+    if(t < 0.0) return false;
+
+    vec3 intPoint = vec3(pos_frame.x+t*dir_frame.x,pos_frame.y+t*dir_frame.y,0.0);
+    if(intPoint.x < -q.size.x/2.0) return false;
+    if(intPoint.y < -q.size.y/2.0) return false;
+    if(intPoint.x >  q.size.x/2.0) return false;
+    if(intPoint.y >  q.size.y/2.0) return false;
+       
+    mat3 axesT = transpose(q.axes);
+   // nfo.point = axesT*intPoint+q.pos;
+    nfo.point = r.pos+t*r.dir;
+    nfo.normal = axesT[2];
+    nfo.mat.albedo = q.mat.albedo;
+    nfo.mat.type = q.mat.type;
+    nfo.t = t;
+   
+    return true;
+}
+
+bool intersect_cube(Ray r,vec3 corner, float  size){
+
+    float mins[3];
+    float maxs[3];
+    float a,b;
+    a = (  corner.x      - r.pos.x ) / r.dir.x;
+    b = (  corner.x + size -  r.pos.x ) / r.dir.x;
+
+    if(a < b ) {mins[0] = a; maxs[0] = b;} else {mins[0] = b; maxs[0] = a;}
+
+    a = (  corner.y - r.pos.y ) / r.dir.y;
+    b = (  corner.y + size -  r.pos.y  ) / r.dir.y;
+ 
+    if(a < b ) {mins[1] = a; maxs[1] = b;} else {mins[1] = b; maxs[1] = a;}
+
+    a = (  corner.z - r.pos.z ) / r.dir.z;
+    b = (  corner.z + size -  r.pos.z   ) / r.dir.z;
+ 
+    if(a < b ) {mins[2] = a; maxs[2] = b;} else {mins[2] = b; maxs[2] = a;}
+
+    float last_entry = mins[0];
+    if(mins[1] > last_entry) last_entry = mins[1];
+    if(mins[2] > last_entry) last_entry = mins[2];
+
+    float first_exit = maxs[0];
+    if(maxs[1] < first_exit) first_exit = maxs[1];
+    if(maxs[2] < first_exit) first_exit = maxs[2];
+
+     
+    return ( first_exit > last_entry ) && (first_exit > 0);
+}
+
+Ray primaryRay( in vec2 winpos ) {
+    const float near = 2.0;
+    
+    winpos = winpos-vec2(0.5)+hash2(g_seed);
+    
+    Ray r;
+    r.pos = vec3( 0.0 ); // viewpos (eye) in origin!
+    r.dir.x = (winpos.x - iResolution.x / 2.0) / (iResolution.x / 2.0);
+    r.dir.y = (winpos.y - iResolution.y / 2.0) / (iResolution.x / 2.0);
+    r.dir.z = -near;
+    r.dir = normalize( r.dir );
+    return r;
+}
+
+hit_info closest(in hit_info nfo1,in hit_info nfo2){
+    if(nfo1.t < nfo2.t) return nfo1; else return nfo2;
+}
+
+
+
+
+vec3 delta_sibling(int c){
+    vec3 res;
+
+    int o = (c-1)%8;
+
+    res.x = (o % 2 == 0) ?			0.f : 1.f;
+    res.y = ((o / 2) % 2 == 0) ?	0.f : 1.f;
+	res.z = ( o / 4 == 0) ?		    0.f : 1.f;
+
+    return res;
+}
+
+struct nodetype{
+    int id;
+    vec3 pos;
+    vec3 delta;
+    float size;
+    bool going_up;
+
+    
+};
+bool last(nodetype n){ return (n.id-1)%8 == 7;}
+
+nodetype up(nodetype n){
+    nodetype res;
+    res.id = (n.id-1)/8;
+    res.delta = delta_sibling(res.id);
+    res.size = n.size * 2;
+    res.pos = n.pos - n.delta*n.size;
+    res.going_up = true;
+    return res;
+}
+
+nodetype down(nodetype n){
+    nodetype res;
+    res.id =  n.id*8+1;
+    res.delta = vec3(0.f);
+    res.size = n.size / 2;
+    res.pos = n.pos;
+    res.going_up = false;
+    return res;
+}
+
+nodetype next(nodetype n){
+    nodetype res;
+    res.id = n.id+1;
+    res.delta = delta_sibling(res.id);
+    res.size = n.size ;
+    res.pos = n.pos - n.delta*n.size + res.delta* n.size;
+    res.going_up = false;
+    return res;
+}
+
+nodetype up_or_next(nodetype n){
+    if(last( n))  return  up(n); else  return next(n);
+}
+
+
+// debug variables --
+ bool exit = false;
+ bool tested = false;
+ bool hit = false;
+ int n_leaves = 0;
+ int n_ite = 0;
+// -- //
+
+bool hit_scene(in Ray r,in  float m, in float M, inout hit_info nfo){
+ hit_info nfoT;
+ nfo.t = M;
+ r.pos += m*r.dir;
+
+// test all the elments of the scene
+// if ( intersect_sphere( r, sphereA,nfoT ) ) nfo = closest(nfo,nfoT); 
+// if ( intersect_sphere( r, sphereB,nfoT ) ) nfo = closest(nfo,nfoT); 
+// if ( intersect_quad( r, quadL,nfoT ) ) nfo = closest(nfo,nfoT); 
+// if ( intersect_quad( r, quadR,nfoT ) ) nfo = closest(nfo,nfoT); 
+// // // if ( intersect_quad( r, quadT,nfoT ) ) nfo = closest(nfo,nfoT); 
+// if ( intersect_quad( r, quadB,nfoT ) ) nfo = closest(nfo,nfoT); 
+// if ( intersect_quad( r, area_light,nfoT ) ) nfo = closest(nfo,nfoT); 
+ 
+ // if ( intersect_triangle( r,  vec3(0,0,-3.2),vec3(0, 0.5,-3.2),vec3( 1,0,-3.2),nfoT ) ) nfo = closest(nfo,nfoT); 
+ //  if ( intersect_triangle( r,  p0.xyz,p1.xyz,p2.xyz ,nfoT ) ) nfo = closest(nfo,nfoT); 
+
+
+ int curr = 0;
+ bool done = false;
+ bool going_up = false;
+
+ nodetype cn;
+ cn.id = 0;
+ cn.size = uBbox.w;
+ cn.pos  = uBbox.xyz;
+ cn.going_up = false; 
+ 
+ n_leaves = 0;
+ n_ite = 0;
+
+// hit = intersect_cube(r,vec3(0,0,-4), 0.5);
+
+
+// if(false)
+ do{
+    n_ite ++;
+    if(cn.going_up || !intersect_cube(r,cn.pos*0.125-vec3(0,0,4.0) ,cn.size*0.125 )){
+         cn = up_or_next(cn);
+    } 
+    else
+     { 
+        ivec2 node = imageLoad(imgInputOctree,id2tc(cn.id)).xy;
+         if(node.x == 0 ){// empty leaf
+             cn = up_or_next(cn);         
+        }
+         else
+          if(node.x == 1){ // internal node
+             cn = down(cn);
+          }
+         else // then it's a non empty leaf
+            if(node.x > 1 ){
+                 for(int it = node.x-2; it < node.x-2+node.y ;++it){
+                    ivec2 tc  = id2tc(it); 
+                    ivec3 ids = imageLoad(imgInputId,tc).xyz;
+                    p0 = imageLoad(imgInputPos,id2tc(ids.x));
+                    p1 = imageLoad(imgInputPos,id2tc(ids.y));
+                    p2 = imageLoad(imgInputPos,id2tc(ids.z));
+   
+                    // hardcoded per il torus (da aggiungere le transf )
+                    p0 *=0.125;
+                    p1 *=0.125;
+                    p2 *=0.125;
+ 
+                    p0.z -= 4.0;
+                    p1.z -= 4.0;
+                    p2.z -= 4.0;
+                    //
+                    
+
+                    if ( intersect_triangle( r,  p0.xyz,p1.xyz,p2.xyz ,nfoT ) ) 
+                    {
+                        hit = true;
+                        nfo = closest(nfo,nfoT); 
+                     }
+                   } // end for
+                  cn = up_or_next(cn);
+         }
+     } 
+  }while( ! (cn.id == 0 && cn.going_up )  && n_ite<1000);
+ 
+ return (nfo.t < M);
+ }
+
+
+
+bool inShadow(in hit_info nfo){
+    Ray r;
+    hit_info _;
+    r.dir = normalize(point_light-nfo.point);
+    r.pos = nfo.point;
+    return hit_scene(r,0.001,length(point_light-nfo.point),  _);
+    
+}
+
+vec3 direct_area_lighting(in hit_info nfo){
+    hit_info _;
+    
+    vec3 light_pos = pos_in_quad(area_light);
+    Ray r;
+    vec3 s= light_pos-nfo.point;
+    r.dir = normalize(s);
+    r.pos = nfo.point;
+    
+    float area = 2.0;
+    float contr = 0.0;
+    if(!hit_scene(r,0.001,0.99*length(light_pos-nfo.point)+0.0001,  _))
+      contr = area * r.dir.y * dot(nfo.normal, r.dir) / (3.14 * dot(s,s));
+    return contr*area_light.mat.albedo;
+}
+
+
+
+
+vec3 direct_lighting(in hit_info nfo){
+    float contr = 0.0;
+    if(!inShadow(nfo))
+     contr = max(dot(nfo.normal,normalize(point_light-nfo.point)),0.0);
+    return contr*nfo.mat.albedo;
+}
+
+vec3 dir_in_hemispere(in hit_info nfo){
+   return normalize(nfo.normal + random_in_unit_sphere(g_seed));
+}
+
+vec3 color(in Ray r){
+    vec3 col = vec3(1);  
+    vec3 dcol = vec3(0);
+	hit_info nfo;
+    
+    for (int i=0; i<MAX_BOUNCES; i++) {
+    
+     if (hit_scene(r, 0.001, 100.0, nfo)){
+            
+         if( (i== MAX_BOUNCES-1 )  ) 
+            col *= vec3(0.0);
+          else 
+         if(nfo.mat.type == LAMBERTIAN){
+               col *=  nfo.mat.albedo;
+               dcol += col*direct_area_lighting(nfo);
+               dcol += col*direct_lighting(nfo);
+              }
+         else
+          if( (i==0) &&  nfo.mat.type == EMISSIVE )
+             {
+                   col  *= nfo.mat.albedo;
+                  i = MAX_BOUNCES;
+             }
+               
+         r.pos = nfo.point;
+         r.dir = dir_in_hemispere(nfo);
+        
+        }
+         else
+        {
+           //float t = .5*r.dir.y + .5;
+          // col *= mix(vec3(1),vec3(.5,.7,1), t);
+           col=vec3(0);
+        }
+         
+      }
+    return col+dcol;
+}
+
+
+shared vec3 avg_col;
+
+void main()
+{
+	iResolution.xy = ivec2(1024,1024);
+	vec2 fragCoord;
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.x/lsx,gl_GlobalInvocationID.y/lsy);
+	
+    fragCoord.x = float(texelCoord.x)/(gl_NumWorkGroups.x);
+    fragCoord.y = float(texelCoord.y)/(gl_NumWorkGroups.y);
+
+    g_seed = float(base_hash(floatBitsToUint(fragCoord)))/float(0xffffffffU)+iTime;
+
+//    p0 = imageLoad(imgInputPos,ivec2(  imageLoad(imgInputId,ivec2(0,0)).x,0));
+//    p1 = imageLoad(imgInputPos,ivec2(  imageLoad(imgInputId,ivec2(0,0)).y,0));
+//    p2 = imageLoad(imgInputPos,ivec2(  imageLoad(imgInputId,ivec2(0,0)).z,0));
+
+//    p0 = imageLoad(imgInputPos,ivec2(  imageLoad(imgInputId,id2tc(0)).x,0));
+//    p1 = imageLoad(imgInputPos,ivec2(  imageLoad(imgInputId,id2tc(0)).y,0));
+//    p2 = imageLoad(imgInputPos,ivec2(  imageLoad(imgInputId,id2tc(0)).z,0));
+
+
+    quadL =  Quad(create_axes(vec3(0.0,0.0,1.0),vec3(1.0,0.0,0.0)),vec3(-1.0,0.0,0.0),vec2(10.0,2.0),Material(vec3(0.7,.0,0.0),LAMBERTIAN));
+    quadB =  Quad(create_axes(vec3(1.0,0.0,0.0),vec3(0.0,0.0,1.0)),vec3(0.0,0.0,-5.0),vec2(2.0,2.0),Material(vec3(0.5,0.55,0.62),LAMBERTIAN));
+    quadT =  Quad(create_axes(vec3(1.0,0.0,0.0),vec3(0.0,1.0,0.0)),vec3(0.0,-1.0,0.0),vec2(2,10.0),Material(vec3(0.5,0.5,0.5),LAMBERTIAN));
+    quadR =  Quad(create_axes(vec3(0.0,0.0,1.0),vec3(-1.0,0.0,0.0)),vec3(1.0,0.0,0.0),vec2(10,2.0),Material(vec3(0.0,0.7,0.0),LAMBERTIAN));
+    area_light = Quad(create_axes(vec3(1.0,0.0,0.0),vec3(0.0,-1.0,0.0)),vec3(0.0, 0.99,-4.0),vec2(1,1),Material(vec3(1.0,1.0,1.0),EMISSIVE));
+
+    background_color = vec3(0.0, 0.5, 0.6);
+    vec2 tc;
+
+    Ray r = primaryRay( texelCoord );
+    vec3 col = color(r); 
+
+     vec4 curr = imageLoad(imgOutput,texelCoord);
+     curr  =  curr + vec4(col,1.0); 
+ 
+     imageStore(imgOutput, texelCoord,  vec4(curr.xyz,curr.w) );
+
+
+     // debug
+     // ivec2 node = imageLoad(imgInputOctree,id2tc(texelCoord.x)).xy;
+      // imageStore(imgOutput, texelCoord,  vec4((n_ite==10)?1:0,(n_leaves>1)?1:0,0,1) );
+
+     // imageStore(imgOutput, texelCoord,  vec4(node.x == 1 ,node.y > 2 ,node.x > 1,1) );
+     // imageStore(imgOutput, texelCoord,  vec4(exit==true ,tested == true,hit == true,1) );
+       imageStore(imgOutput, texelCoord,  vec4(hit==true ,0.0,0,1) );
+
+
+  //  imageStore(imgOutput, texelCoord, vec4(col.xyz,1.0));
+
+  //  imageStore(imgOutput, texelCoord, imageLoad(imgInputId,ivec2(texelCoord.x,0)));
+}
+
