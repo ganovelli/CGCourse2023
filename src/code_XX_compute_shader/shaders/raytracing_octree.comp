@@ -392,7 +392,7 @@ bool hit_scene(in Ray r,in  float m, in float M, inout hit_info nfo){
           if(node.x == 1){ // internal node
              cn = down(cn);
           }
-         else // non empty leaf
+         else // then it's a non empty leaf
             if(node.x > 1 ){
                  for(int it = node.x-2; it < node.x-2+node.y ;++it){
                     ivec2 tc  = id2tc(it); 
