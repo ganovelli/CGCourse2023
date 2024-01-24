@@ -15,7 +15,7 @@ layout(rgba32i, binding = 4) uniform iimage2D imgInputOctree;
 uniform int iTime;
 uniform int uWidth;
 uniform int uNTriangles;
-uniform vec3 uBbox;
+uniform vec4 uBbox;
 
 #define MAX_BOUNCES 1
 #define LAMBERTIAN 0
@@ -223,6 +223,38 @@ bool intersect_quad( in Ray r, in Quad q,out hit_info nfo){
     return true;
 }
 
+bool intersect_cube(Ray r,vec3 corner, float  size){
+
+    float mins[3];
+    float maxs[3];
+    float a,b;
+    a = (  corner.x      - r.pos.x ) / r.dir.x;
+    b = (  corner.x + size -  r.pos.x ) / r.dir.x;
+
+    if(a < b ) {mins[0] = a; maxs[0] = b;} else {mins[0] = b; maxs[0] = a;}
+
+    a = (  corner.y - r.pos.y ) / r.dir.y;
+    b = (  corner.y + size -  r.pos.y  ) / r.dir.y;
+ 
+    if(a < b ) {mins[1] = a; maxs[1] = b;} else {mins[1] = b; maxs[1] = a;}
+
+    a = (  corner.z - r.pos.z ) / r.dir.z;
+    b = (  corner.z + size -  r.pos.z   ) / r.dir.z;
+ 
+    if(a < b ) {mins[2] = a; maxs[2] = b;} else {mins[2] = b; maxs[2] = a;}
+
+    float last_entry = mins[0];
+    if(mins[1] > last_entry) last_entry = mins[1];
+    if(mins[2] > last_entry) last_entry = mins[2];
+
+    float first_exit = maxs[0];
+    if(maxs[1] < first_exit) first_exit = maxs[1];
+    if(maxs[2] < first_exit) first_exit = maxs[2];
+
+     
+    return ( first_exit > last_entry ) && (first_exit > 0);
+}
+
 Ray primaryRay( in vec2 winpos ) {
     const float near = 2.0;
     
@@ -241,10 +273,7 @@ hit_info closest(in hit_info nfo1,in hit_info nfo2){
     if(nfo1.t < nfo2.t) return nfo1; else return nfo2;
 }
 
- bool exit = false;
- bool tested = false;
- bool hit = false;
- int n_leaves = 0;
+
 
 
 vec3 delta_sibling(int c){
@@ -259,39 +288,59 @@ vec3 delta_sibling(int c){
     return res;
 }
 
-struct node{
+struct nodetype{
     int id;
     vec3 pos;
     vec3 delta;
     float size;
-};
+    bool going_up;
 
-node up(node n){
-    node res;
+    
+};
+bool last(nodetype n){ return (n.id-1)%8 == 7;}
+
+nodetype up(nodetype n){
+    nodetype res;
     res.id = (n.id-1)/8;
     res.delta = delta_sibling(res.id);
     res.size = n.size * 2;
     res.pos = n.pos - n.delta*n.size;
+    res.going_up = true;
     return res;
 }
 
-node down(node n){
-    node res;
-    res.id = (n.id+1)*8;
+nodetype down(nodetype n){
+    nodetype res;
+    res.id =  n.id*8+1;
     res.delta = vec3(0.f);
     res.size = n.size / 2;
     res.pos = n.pos;
+    res.going_up = false;
     return res;
 }
 
-node next(node n){
-    node res;
+nodetype next(nodetype n){
+    nodetype res;
     res.id = n.id+1;
     res.delta = delta_sibling(res.id);
     res.size = n.size ;
     res.pos = n.pos - n.delta*n.size + res.delta* n.size;
+    res.going_up = false;
     return res;
 }
+
+nodetype up_or_next(nodetype n){
+    if(last( n))  return  up(n); else  return next(n);
+}
+
+
+// debug variables --
+ bool exit = false;
+ bool tested = false;
+ bool hit = false;
+ int n_leaves = 0;
+ int n_ite = 0;
+// -- //
 
 bool hit_scene(in Ray r,in  float m, in float M, inout hit_info nfo){
  hit_info nfoT;
@@ -313,84 +362,66 @@ bool hit_scene(in Ray r,in  float m, in float M, inout hit_info nfo){
 
  int curr = 0;
  bool done = false;
- bool up = false;
+ bool going_up = false;
 
- node cn;
- res.id = (n.id+1)*8;
- res.delta = vec3(0.f);
- res.size = n.size / 2;
- res.pos = n.pos;
-  
+ nodetype cn;
+ cn.id = 0;
+ cn.size = uBbox.w;
+ cn.pos  = uBbox.xyz;
+ cn.going_up = false; 
+ 
+ n_leaves = 0;
+ n_ite = 0;
 
+// hit = intersect_cube(r,vec3(0,0,-4), 0.5);
+
+
+// if(false)
  do{
-     ivec2 node = imageLoad(imgInputOctree,id2tc(curr)).xy;
-     if(node.x == 0 ){// empty leaf
-          if((curr-1) %8 == 7 ) // it was the last siblings, back to parent
-                {   up = true;
-                    curr = ( curr - 1 ) / 8 ;
-                }
-            else // next sibling
-                {   
-                    up = false;
-                    curr = curr + 1;
-                }
-     }
-     else
-      if(node.x == 1){ // internal node
-            if(up){//  already visited 
-             if((curr - 1) %8 == 7 ){// it was the last siblings, back to parent
-                 curr = ( curr - 1 ) / 8 ;
-                }else // next sibling
-                {
-                    up = false;
-                    curr = curr + 1;
-                }
-            }else{ // not already visited
-                    up = false;
-                    curr =   curr*8 + 1 ;
-                 }
-     }
-     else // non empty leaf
-        if(node.x > 1 ){
-             tested = true;
-             n_leaves++;
-             for(int it = node.x-2; it < node.x-2+node.y ;++it){
-                ivec2 tc  = id2tc(it); 
-                ivec3 ids = imageLoad(imgInputId,tc).xyz;
-                p0 = imageLoad(imgInputPos,id2tc(ids.x));
-                p1 = imageLoad(imgInputPos,id2tc(ids.y));
-                p2 = imageLoad(imgInputPos,id2tc(ids.z));
+    n_ite ++;
+    if(cn.going_up || !intersect_cube(r,cn.pos*0.125-vec3(0,0,4.0) ,cn.size*0.125 )){
+         cn = up_or_next(cn);
+    } 
+    else
+     { 
+        ivec2 node = imageLoad(imgInputOctree,id2tc(cn.id)).xy;
+         if(node.x == 0 ){// empty leaf
+             cn = up_or_next(cn);         
+        }
+         else
+          if(node.x == 1){ // internal node
+             cn = down(cn);
+          }
+         else // non empty leaf
+            if(node.x > 1 ){
+                 for(int it = node.x-2; it < node.x-2+node.y ;++it){
+                    ivec2 tc  = id2tc(it); 
+                    ivec3 ids = imageLoad(imgInputId,tc).xyz;
+                    p0 = imageLoad(imgInputPos,id2tc(ids.x));
+                    p1 = imageLoad(imgInputPos,id2tc(ids.y));
+                    p2 = imageLoad(imgInputPos,id2tc(ids.z));
    
-                p0*=0.125;
-                p1*=0.125;
-                p2*=0.125;
+                    // hardcoded per il torus (da aggiungere le transf )
+                    p0 *=0.125;
+                    p1 *=0.125;
+                    p2 *=0.125;
  
-                p0.z -= 4.0;
-                p1.z -= 4.0;
-                p2.z -= 4.0;
- 
-                if ( intersect_triangle( r,  p0.xyz,p1.xyz,p2.xyz ,nfoT ) ) 
-                {
-                    hit = true;
-                    nfo = closest(nfo,nfoT); 
-                 }
-               } // end for
-              if((curr-1)%8 == 7) // it was the last siblings, back to parent
+                    p0.z -= 4.0;
+                    p1.z -= 4.0;
+                    p2.z -= 4.0;
+                    //
+                    
+
+                    if ( intersect_triangle( r,  p0.xyz,p1.xyz,p2.xyz ,nfoT ) ) 
                     {
-                        up = true;
-                        curr = ( curr - 1 ) / 8 ;
-                    }
-                else { // next sibling
-                    up = false;
-                    curr = curr + 1;
-                    }
-     }
-     else
-     { // error
-        exit = true;
-     }
-   
-     }while( ! (curr==0 && up ) && !exit);
+                        hit = true;
+                        nfo = closest(nfo,nfoT); 
+                     }
+                   } // end for
+                  cn = up_or_next(cn);
+         }
+     } 
+  }while( ! (cn.id == 0 && cn.going_up )  && n_ite<1000);
  
  return (nfo.t < M);
  }
@@ -518,11 +549,11 @@ void main()
 
      // debug
      // ivec2 node = imageLoad(imgInputOctree,id2tc(texelCoord.x)).xy;
-       imageStore(imgOutput, texelCoord,  vec4(hit,0,0,1) );
+      // imageStore(imgOutput, texelCoord,  vec4((n_ite==10)?1:0,(n_leaves>1)?1:0,0,1) );
 
      // imageStore(imgOutput, texelCoord,  vec4(node.x == 1 ,node.y > 2 ,node.x > 1,1) );
      // imageStore(imgOutput, texelCoord,  vec4(exit==true ,tested == true,hit == true,1) );
-     // imageStore(imgOutput, texelCoord,  vec4(exit==true ,0,0,1) );
+       imageStore(imgOutput, texelCoord,  vec4(hit==true ,0.0,0,1) );
 
 
   //  imageStore(imgOutput, texelCoord, vec4(col.xyz,1.0));

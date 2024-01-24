@@ -14,6 +14,7 @@ struct gltf_model {
 
     std::vector<texture> positions;
     int n_vert, n_tri;
+    octree o;
 
     static std::string GetFilePathExtension(const std::string& FileName) {
         if (FileName.find_last_of(".") != std::string::npos)
@@ -310,7 +311,7 @@ struct gltf_model {
 
     bool use_octree = true;
     if (use_octree) {
-        octree o;
+       
         o.set((int*)_data, n_tri, (float*)_data_vert[0], n_vert,20, 5);
 
         GLuint  texIdOct;
@@ -347,7 +348,7 @@ struct gltf_model {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32I, max_texture_width, texture_height, 0, GL_RGBA_INTEGER, GL_UNSIGNED_INT, &o.triangles_id[0]);
         glBindImageTexture(3, texId, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA32UI);
         check_gl_errors(__LINE__, __FILE__);
-
+       
     }
 
     return true;

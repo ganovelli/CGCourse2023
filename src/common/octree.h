@@ -110,20 +110,5 @@ struct octree {
 		max_level = 0;
 		set(0, bbox, tr_id,   n_tri,  pos,   n_pos,  max_elem_in_leaf, max_levs);
 
-
-		// AABB o[8];
-		// for (int i = 0; i < 8; ++i) {
-		// 	o[i] = octant(i, bbox);
-		//	o[i].scale(glm::vec3(0.99), o[i].getCenter());
-		//printf("%f %f %f - %f %f %f \n",
-		//	o[i].getMin().x, o[i].getMin().y, o[i].getMin().z, o[i].getDiagonal().x, o[i].getDiagonal().y, o[i].getDiagonal().z);
-
-		//}
-		//for (int i = 0; i < 8; ++i)
-		//	for (int j = 0; j < 8; ++j) if (i != j)
-		//		if (o[i].overlaps(o[j]))
-		//			printf("%d %d", i, j);
-
-		//std::sort(triangles_id.begin(), triangles_id.end());
 	}
 };

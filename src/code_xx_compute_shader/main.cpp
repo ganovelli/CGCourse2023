@@ -222,6 +222,15 @@ int main(int argc, char ** argv)
 	glUniform1i(iTime_loc, 0 * clock());
 	glUniform1i(uWidth_loc, 2048);
 	glUniform1i(uNTriangles_loc, std::max(model.n_tri, 2) );
+
+	float box4[4];
+	box4[0] = model.o.bbox.getMin().x;
+	box4[1] = model.o.bbox.getMin().y;
+	box4[2] = model.o.bbox.getMin().z;
+	box4[3] = model.o.bbox.getLongestEdge();
+
+	glUniform4fv(uBbox_loc, 1, box4);
+	
 	glDispatchCompute((unsigned int)TEXTURE_WIDTH, (unsigned int)TEXTURE_HEIGHT, 1);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 	 
