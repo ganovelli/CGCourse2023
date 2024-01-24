@@ -41,7 +41,7 @@ void main(void)
 		}else
 	if(uRenderMode == 3){ // reflection
 		vec3 r = reflect(normalize(vSkyboxTexCoord.xyz),normalize(vNormalWS));
-		color = texture(uSkybox,r); 
+		color = texture(uSkybox,r);
 	}else
 	if(uRenderMode == 4){// refraction
 		vec3 r = refract(normalize(vSkyboxTexCoord.xyz),normalize(vNormalWS),1.02);

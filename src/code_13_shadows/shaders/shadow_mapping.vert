@@ -19,9 +19,9 @@ void main(void)
 { 
     gl_Position = uP*uV*uT*vec4(aPosition, 1.0); 
 	
-	vNormalVS = normalize((uV*uT*vec4(aNormal,0.0)).xyz);
-	vNormalWS = normalize(( transpose(inverse(uT))*vec4(aNormal,0.0)).xyz);
+	vNormalWS = normalize((inverse(transpose(uT))*vec4(aNormal,0.0)).xyz);
 	vVWS = (inverse(uV)*(vec4(0.0,0.0,0.0,1.0)-uV*uT*vec4(aPosition, 1.0))).xyz;
+
 	vCoordLS =  uLightMatrix*uT*vec4(aPosition, 1.0);
 
 

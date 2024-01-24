@@ -2,7 +2,6 @@
 out vec4 color; 
 
 in vec4 vCoordLS;
-in vec3 vNormalVS;
 in vec3 vNormalWS;
 in vec3 vVWS;
 in vec3 vLWS;
@@ -31,13 +30,14 @@ void main(void)
 	vec3 L = normalize(vLWS);
 	vec3 V = normalize(vVWS);
 
-//	vec3 shaded = (vec3(max(0.0,dot(L,N))) +vec3(max(0.0,dot(V,N)))*0.0)*uDiffuseColor;
-	vec3 shaded = (vec3(max(0.0,dot(L,N))) +vec3(0.6,0.6,0.6))*uDiffuseColor;
+	vec3 diffuse_ligth = vec3(max(0.0,dot(L,N)))*uDiffuseColor;
+	vec3 ambient_ligth = vec3(0.3,0.3,0.3);
+
 	float lit = 1.0;
 
 	if(uRenderMode==0) // just diffuse gray
 		{
-			color = vec4(shaded,1.0);
+			color = vec4(diffuse_ligth+ambient_ligth,1.0);
 		}
 	else
 	if(uRenderMode==1) // basic shadow
@@ -45,8 +45,8 @@ void main(void)
 		vec4 pLS = (vCoordLS/vCoordLS.w)*0.5+0.5;
 		float depth = texture(uShadowMap,pLS.xy).x;
 		if(depth < pLS.z )
-			lit = 0.5;
-         color = vec4(shaded*lit,1.0);
+			lit = 0.0;
+		color = vec4(diffuse_ligth*lit+ambient_ligth,1.0);
 	}
 	else
 	if(uRenderMode==2) // bias
@@ -54,8 +54,8 @@ void main(void)
 		vec4 pLS = (vCoordLS/vCoordLS.w)*0.5+0.5;
 		float depth = texture(uShadowMap,pLS.xy).x;
 		if(depth + uBias < pLS.z )
-			lit = 0.5;
-         color = vec4(shaded*lit,1.0);
+			lit = 0.0;
+		color = vec4(diffuse_ligth*lit+ambient_ligth,1.0);
 	}else
 	if(uRenderMode==3) // slope bias
 	{
@@ -63,16 +63,16 @@ void main(void)
 		vec4 pLS = (vCoordLS/vCoordLS.w)*0.5+0.5;
 		float depth = texture(uShadowMap,pLS.xy).x;
 		if(depth + bias < pLS.z )
-			lit = 0.5;
-         color = vec4(shaded*lit,1.0);
+			lit = 0.0;
+		color = vec4(diffuse_ligth*lit+ambient_ligth,1.0);
 	}else
 	if(uRenderMode==4) // backfaces for watertight objects
 	{
 		vec4 pLS = (vCoordLS/vCoordLS.w)*0.5+0.5;
 		float depth = texture(uShadowMap,pLS.xy).x;
-		if(depth  < pLS.z +uBias || dot(N,L)< 0.f)
-			lit = 0.5;
-         color = vec4(shaded*lit,1.0);
+		if(depth  < pLS.z  || dot(N,L)< 0.f )
+			lit = 0.0;
+		color = vec4(diffuse_ligth*lit+ambient_ligth,1.0);
 	}else
 	if(uRenderMode==5) // Percentage Closest Filtering
 	{
@@ -83,35 +83,24 @@ void main(void)
 			{
 				storedDepth =  texture(uShadowMap,pLS.xy+vec2(-2.0+x,-2.0+y)/uShadowMapSize).x;
 				if(storedDepth + uBias < pLS.z || dot(N,L)<0.f)    
-					lit  -= 0.5/25.0;
+					lit  -= 1.0/25.0;
 			}
-	 color = vec4(shaded*lit,1.0);
+		color = vec4(diffuse_ligth*lit+ambient_ligth,1.0);
 	}else
 	if(uRenderMode==6) // VARIANCE SHADOW MAPPING
 		{
 			vec4 pLS = (vCoordLS/vCoordLS.w)*0.5+0.5;
-			vec2 m = texture( uShadowMap, pLS.xy).xy;
-			float mu = m.x-uBias;
+			vec2 m = textureLod( uShadowMap, pLS.xy,2).xy;
+ 			float mu = m.x;
+			/* do not trust 0 variance */
+			float sigma = max(m.y-mu*mu,0.001);
 			float diff = pLS.z - mu; 
-			if(pLS.z > mu){
-			 lit = m.y / (m.y+diff*diff);
+			if(diff > 0.0){
+			 lit = sigma / (sigma+diff*diff);
+
+			 /* remap the formula between 0.001 and 1.0*/
+			 lit = linstep(0.001, 1.0, sigma / (sigma + diff*diff));
 			}
-		color = vec4(shaded*lit,1.0);
-
-/*
-			float p = step(pLS.z, mu);
-			float sq_sigma = max(m.y-mu*mu,0.001);
-						
-			float d = pLS.z-mu;
-			float pMax = linstep(0.001, 1.0, sq_sigma / (sq_sigma + d*d));
-						
-			lit =  min(max(p, pMax), 1.0);
-						
-			lit = 0.5+lit*0.5;
-			color = vec4(m,0.0,1.0);
-
-			color  = vec4((shaded*lit).xy,sqrt(m.y),1.0);
-*/		}				
-	
-
+		color = vec4(diffuse_ligth*lit+ambient_ligth,1.0);
+		}
 } 

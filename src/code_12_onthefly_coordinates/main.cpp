@@ -238,7 +238,7 @@ int main(void)
 		return -1;
 
 	/* Create a windowed mode window and its OpenGL context */
-	window = glfwCreateWindow(1000, 800, "code_10_shading_gui", NULL, NULL);
+	window = glfwCreateWindow(1000, 800, "code_12_onthefly_coordinates", NULL, NULL);
 	if (!window)
 	{
 		glfwTerminate();

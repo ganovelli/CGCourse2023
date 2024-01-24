@@ -25,7 +25,7 @@ int main(void)
   
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(1000, 800, "My Race", NULL, NULL);
+    window = glfwCreateWindow(1000, 800, "code_0_setup", NULL, NULL);
     if (!window)
     {
         glfwTerminate();

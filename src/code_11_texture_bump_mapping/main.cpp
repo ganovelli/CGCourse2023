@@ -154,7 +154,7 @@ int main(void)
 		return -1;
 
 	/* Create a windowed mode window and its OpenGL context */
-	window = glfwCreateWindow(1000, 800, "code_10_shading_gui", NULL, NULL);
+	window = glfwCreateWindow(1000, 800, "code_11_texture_bump_mapping", NULL, NULL);
 	if (!window)
 	{
 		glfwTerminate();

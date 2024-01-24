@@ -43,9 +43,6 @@ struct projector {
 	texture tex;
 	glm::mat4 set_projection(glm::mat4 _view_matrix, box3 box) {
 		view_matrix = _view_matrix;
-
-		/* TBD: set the view volume properly so that they are a close fit of the 
-		bounding box passed as paramter */
 		proj_matrix =  glm::ortho(-4.f, 4.f, -4.f, 4.f,0.f, distance_light*2.f);
 //		proj_matrix = glm::perspective(3.14f/2.f,1.0f,0.1f, distance_light*2.f);
 		return proj_matrix;
@@ -86,6 +83,7 @@ renderable r_frame, r_plane,r_line,r_torus,r_cube, r_sphere,r_quad;
 shader depth_shader,shadow_shader,flat_shader,fsq_shader,blur_shader;
 
 /* implementation of view controller */
+
 /* azimuthal and elevation angle*/
 view_manipulator view_man;
 
@@ -135,29 +133,28 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
  /* every time any key is presse it switch from controlling trackball tb[0] to tb[1] and viceversa */
  if(action == GLFW_PRESS)
 	 curr_tb = 1 - curr_tb;
-}
 
+}
 void print_info() {
 }
 
-/* which algorithm to use */
-static int selected_mode = 0;
 
-/* paramters of the VSM (it should be 0.5) */
-static float k_plane_approx = 0.5;
+
+static int selected = 0;
+static bool use_plane_approx;
 
 void gui_setup() {
 	ImGui::BeginMainMenuBar();
 
 	if (ImGui::BeginMenu("Shadow mode"))
 	{
-	 if (ImGui::Selectable("none", selected_mode == 0)) selected_mode = 0;
-	 if (ImGui::Selectable("Basic shadow mapping", selected_mode == 1)) selected_mode = 1;
-	 if (ImGui::Selectable("bias", selected_mode == 2)) selected_mode = 2;
-	 if (ImGui::Selectable("slope bias", selected_mode == 3)) selected_mode = 3;
-	 if (ImGui::Selectable("back faces", selected_mode == 4)) selected_mode = 4;
-	 if (ImGui::Selectable("PCF", selected_mode == 5)) selected_mode = 5;
-	 if (ImGui::Selectable("Variance SM", selected_mode == 6)) selected_mode = 6;
+	 if (ImGui::Selectable("none", selected == 0)) selected = 0;
+	 if (ImGui::Selectable("Basic shadow mapping", selected == 1)) selected = 1;
+	 if (ImGui::Selectable("bias", selected == 2)) selected = 2;
+	 if (ImGui::Selectable("slope bias", selected == 3)) selected = 3;
+	 if (ImGui::Selectable("back faces", selected == 4)) selected = 4;
+	 if (ImGui::Selectable("PCF", selected == 5)) selected = 5;
+	 if (ImGui::Selectable("Variance SM", selected == 6)) selected = 6;
 	 ImGui::EndMenu();
 	}
 	if (ImGui::BeginMenu("parameters"))
@@ -178,7 +175,7 @@ void gui_setup() {
 			}
 		if (ImGui::SliderFloat("distance", &distance_light, 2.f, 100.f)) 
 			Lproj.set_projection(glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f))*inverse(tb[1].matrix()), box3(1.0));
-		ImGui::SliderFloat("  plane approx", &k_plane_approx,0.0,1.0);
+		ImGui::Checkbox("use plane approx", &use_plane_approx);
 		if (redo_fbo) {
 			fbo.remove();
 			fbo.create(Lproj.sm_size_x, Lproj.sm_size_y,true);
@@ -261,8 +258,8 @@ void draw_scene(  shader & sh) {
 	stack.mult(glm::translate(glm::mat4(1.f), glm::vec3(0.0, 0.5, 0.0)));
 	stack.mult(glm::scale(glm::mat4(1.f), glm::vec3(0.1, 0.5, 0.1)));
 	glUniformMatrix4fv(sh["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-	//draw_sphere(sh);
-	draw_cube(sh);
+	draw_sphere(sh);
+	//draw_cube(sh);
 	stack.pop();
 
 	// torus	
@@ -385,38 +382,42 @@ int main(void)
 	/* create a rectangle*/
 	shape s_plane;
 	shape_maker::rectangle(s_plane, 1, 1);
+	s_plane.compute_tangent_space();
 	s_plane.to_renderable(r_plane);
-
+	check_gl_errors(__LINE__, __FILE__, true);
 	/* create a torus */
 	shape  s_torus;
 	shape_maker::torus(s_torus, 0.5, 2.0, 50, 50);
+	s_torus.compute_tangent_space();
 	s_torus.to_renderable(r_torus);
 	check_gl_errors(__LINE__, __FILE__, true);
-
-	/* create a cube */
+	/* create a torus */
 	shape s_cube;
 	shape_maker::cube(s_cube);
 	s_cube.compute_edge_indices_from_indices();
 	s_cube.to_renderable(r_cube);
 
+
 	/* create a sphere */
 	r_sphere = shape_maker::sphere();
 
 	/* create a quad with size 2 centered to the origin and on the XY pane */
-	/* this is a quad used for the "full screen quad" rendering */
 	r_quad = shape_maker::quad();
 
 	/* initial light direction */
 	Ldir = glm::vec4(0.0, 1.0, 0.0, 0.0);
 
 	/* light projection */
+	check_gl_errors(__LINE__, __FILE__, true);
 	Lproj.sm_size_x = 512;
 	Lproj.sm_size_y = 512;
 	depth_bias = 0;
 	distance_light = 2;
-	k_plane_approx = 0.5;
-
 	Lproj.view_matrix = glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f));
+	Lproj.tex.load("../../models/textures/batman_512.png",0);
+ 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	check_gl_errors(__LINE__, __FILE__, true);
 
 	/* Transformation to setup the point of view on the scene */
 	proj = glm::frustum(-1.f, 1.f, -0.8f, 0.8f, 2.f,100.f);
@@ -473,7 +474,6 @@ int main(void)
 		ImGui::NewFrame();
 		gui_setup();
 
-		Ldir = glm::vec4(0.f, 1.f, 0.f,0.f);
 		/* rotate the view accordingly to view_rot*/
 		glm::mat4 curr_view = view_man.apply_to_view(view);
 
@@ -483,50 +483,9 @@ int main(void)
 		stack.push();
 		stack.mult(tb[0].matrix());
 
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo.id_fbo);
-		glViewport(0, 0, Lproj.sm_size_x, Lproj.sm_size_y);
-		glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-		glUseProgram(depth_shader.pr);
+		//draw_scene(depth_shader);
 
-		Lproj.view_matrix = glm::lookAt(glm::vec3(0, distance_light, 0.f), glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 0.f, -1.f))*inverse(tb[1].matrix());
-		Lproj.set_projection(Lproj.view_matrix, box3(2.0));
-
-		glUniformMatrix4fv(depth_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
-		glUniformMatrix4fv(depth_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		glUniform1f(depth_shader["uPlaneApprox"], k_plane_approx);
-
-
-		if (selected_mode == 4 || selected_mode == 5) {
-			glEnable(GL_CULL_FACE);
-			glCullFace(GL_FRONT);
-		}
-
-		draw_scene(depth_shader);
-
-		glCullFace(GL_BACK);
-		glBindFramebuffer(GL_FRAMEBUFFER,0);
-
-		if (selected_mode == 6) {
-//			blur_texture(fbo.id_tex);
-
-			glBindTexture(GL_TEXTURE_2D,fbo.id_tex);
-			glGenerateMipmap(GL_TEXTURE_2D);
-		}
-
-		glViewport(0, 0, 1000, 800);
-
-		glUseProgram(shadow_shader.pr);
-		glUniformMatrix4fv(shadow_shader["uLightMatrix"], 1, GL_FALSE, &Lproj.light_matrix()[0][0]);
-		glUniformMatrix4fv(shadow_shader["uV"], 1, GL_FALSE, &curr_view[0][0]);
-		glUniformMatrix4fv(shadow_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		glUniform1fv(shadow_shader["uBias"],1, &depth_bias);
-		glUniform2i(shadow_shader["uShadowMapSize"], Lproj.sm_size_x, Lproj.sm_size_y );
-		glUniform1i(shadow_shader["uRenderMode"], selected_mode);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, fbo.id_tex);
-
-		draw_scene(shadow_shader);
 
 		// render the reference frame
 		glUseProgram(flat_shader.pr);
@@ -539,17 +498,6 @@ int main(void)
 		glUseProgram(0);
 
 		check_gl_errors(__LINE__, __FILE__, true);
-		stack.pop();
-
-
-		r_cube.bind();
-		stack.push();
-		stack.mult(inverse(Lproj.light_matrix()));
-		glUseProgram(flat_shader.pr);
-		glUniform3f(flat_shader["uColor"], 0.0, 0.0, 1.0);
-		glUniformMatrix4fv(flat_shader["uT"], 1, GL_FALSE, &stack.m()[0][0]);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r_cube.inds[1].ind);
-		glDrawElements(r_cube.inds[1].elem_type, r_cube.inds[1].count,GL_UNSIGNED_INT, 0);
 		stack.pop();
 
 		// render the light direction
